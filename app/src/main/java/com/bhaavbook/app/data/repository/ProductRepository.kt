@@ -4,6 +4,8 @@ import com.bhaavbook.app.data.db.ProductDao
 import com.bhaavbook.app.data.model.Product
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,25 +54,24 @@ class ProductRepository @Inject constructor(
             query.isBlank() -> sortedFlow(sortOrder)
             query.length < 2 -> dao.searchLike(query)
             else -> dao.searchFts(buildFtsQuery(query))
-                .catch { emit(dao.searchLike(query)) } // fallback on FTS error
+                .catch { emitAll(dao.searchLike(query)) } // fallback on FTS error
         }
 
-        return baseFlow.mapFilter(filter)
-    }
-
-    private fun Flow<List<Product>>.mapFilter(filter: ProductFilter): Flow<List<Product>> =
-        kotlinx.coroutines.flow.map(this) { list ->
+        return baseFlow.map { list ->
             when (filter) {
                 is ProductFilter.None -> list
-                is ProductFilter.ByCategory -> list.filter {
-                    it.category.equals(filter.category, ignoreCase = true)
+                is ProductFilter.ByCategory -> list.filter { product ->
+                    product.category?.equals(filter.category, ignoreCase = true) == true
                 }
-                is ProductFilter.ByBrand -> list.filter {
-                    it.brand.equals(filter.brand, ignoreCase = true)
+                is ProductFilter.ByBrand -> list.filter { product ->
+                    product.brand?.equals(filter.brand, ignoreCase = true) == true
                 }
-                is ProductFilter.InStockOnly -> list.filter { it.inStock }
+                is ProductFilter.InStockOnly -> list.filter { product ->
+                    product.inStock
+                }
             }
         }
+    }
 
     private fun sortedFlow(sortOrder: SortOrder): Flow<List<Product>> = when (sortOrder) {
         SortOrder.NAME_ASC -> dao.getAllByName()

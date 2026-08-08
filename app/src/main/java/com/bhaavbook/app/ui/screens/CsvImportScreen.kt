@@ -54,8 +54,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bhaavbook.app.csv.AppField
 import com.bhaavbook.app.csv.ColumnMapping
+import com.bhaavbook.app.csv.CsvExporter
 import com.bhaavbook.app.csv.DuplicateStrategy
 import com.bhaavbook.app.csv.ImportResult
+import com.bhaavbook.app.csv.ImportRowError
 import com.bhaavbook.app.csv.ParsedCsvResult
 import com.bhaavbook.app.ui.viewmodel.CsvImportViewModel
 import com.bhaavbook.app.ui.viewmodel.ImportStep
@@ -81,9 +83,7 @@ fun CsvImportScreen(
     ) { uri: Uri? ->
         uri?.let { savedUri ->
             val done = state.step as? ImportStep.Done ?: return@let
-            val parsed = done.result
-            // We need headers — use the done result's error rows
-            viewModel.exportErrors(savedUri, CsvImportViewModel.SAMPLE_HEADERS, done.result.errors)
+            viewModel.exportErrors(savedUri, CsvExporter.CSV_HEADERS.toList(), done.result.errors)
         }
     }
 

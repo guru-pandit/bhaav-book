@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 sealed class ImportStep {
@@ -115,6 +114,14 @@ class CsvImportViewModel @Inject constructor(
             } catch (e: Exception) {
                 _state.value = _state.value.copy(isExportingErrors = false)
             }
+        }
+    }
+
+    fun saveSampleCsv(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                exporter.writeSampleCsv(uri)
+            } catch (_: Exception) {}
         }
     }
 
