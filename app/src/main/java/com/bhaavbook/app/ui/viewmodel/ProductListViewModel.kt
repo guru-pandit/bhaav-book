@@ -1,8 +1,12 @@
 package com.bhaavbook.app.ui.viewmodel
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bhaavbook.app.csv.CsvExporter
 import com.bhaavbook.app.data.model.Product
 import com.bhaavbook.app.data.repository.ProductFilter
 import com.bhaavbook.app.data.repository.ProductRepository
@@ -39,6 +43,7 @@ data class ProductListUiState(
 class ProductListViewModel @Inject constructor(
     private val repository: ProductRepository,
     private val settingsRepository: SettingsRepository,
+    private val csvExporter: CsvExporter,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -101,6 +106,36 @@ class ProductListViewModel @Inject constructor(
     fun onSortOrderChange(order: SortOrder) { _sortOrder.value = order }
     fun onFilterChange(filter: ProductFilter) { _activeFilter.value = filter }
     fun clearSearch() { _searchQuery.value = "" }
+
+    /** Save products to user selected CSV file URI */
+    fun exportToCsvUri(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val snapshot = repository.getAllSnapshot()
+                csvExporter.exportToCsv(uri, snapshot)
+                _snackbarMessage.value = "Exported ${snapshot.size} products to CSV"
+            } catch (e: Exception) {
+                _snackbarMessage.value = "Export failed: ${e.message}"
+            }
+        }
+    }
+
+    /** Triggers Android share sheet to share CSV file via WhatsApp, Email, etc. */
+    fun shareCsv(context: Context) {
+        viewModelScope.launch {
+            try {
+                val snapshot = repository.getAllSnapshot()
+                if (snapshot.isEmpty()) {
+                    _snackbarMessage.value = "No products to share"
+                    return@launch
+                }
+                val shareIntent = csvExporter.createShareCsvIntent(snapshot)
+                context.startActivity(shareIntent)
+            } catch (e: Exception) {
+                _snackbarMessage.value = "Could not share CSV: ${e.message}"
+            }
+        }
+    }
 
     /**
      * Soft-delete: mark pending for 5 seconds, show undo snackbar.

@@ -16,6 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -42,23 +45,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.bhaavbook.app.BuildConfig
 import com.bhaavbook.app.R
-import com.bhaavbook.app.csv.CsvExporter
 import com.bhaavbook.app.data.model.ProductUnit
-import com.bhaavbook.app.data.repository.ProductRepository
 import com.bhaavbook.app.data.settings.PriceFontSize
 import com.bhaavbook.app.data.settings.ThemeOption
 import com.bhaavbook.app.ui.viewmodel.SettingsViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import javax.inject.Inject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +65,14 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // SAF launcher to save CSV file to storage
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.exportToCsvUri(it) }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -127,6 +131,32 @@ fun SettingsScreen(
                 checked = settings.showCostPrice,
                 onCheckedChange = viewModel::updateShowCostPrice
             )
+
+            HorizontalDivider()
+
+            // --- Data Sharing & Export ---
+            SectionHeader("Data Export & Sharing")
+            Button(
+                onClick = { viewModel.shareCsv(context) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Icon(Icons.Outlined.Share, contentDescription = null)
+                Spacer(Modifier.padding(4.dp))
+                Text("Share CSV (WhatsApp / Email / Drive)")
+            }
+
+            OutlinedButton(
+                onClick = { exportCsvLauncher.launch("bhaavbook_products.csv") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Icon(Icons.Outlined.FileDownload, contentDescription = null)
+                Spacer(Modifier.padding(4.dp))
+                Text("Export CSV File to Phone Storage")
+            }
 
             HorizontalDivider()
 

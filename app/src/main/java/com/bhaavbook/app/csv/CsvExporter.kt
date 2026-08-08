@@ -1,7 +1,9 @@
 package com.bhaavbook.app.csv
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import androidx.core.content.FileProvider
 import com.bhaavbook.app.data.model.Product
 import com.opencsv.CSVWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -9,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
 import java.io.OutputStreamWriter
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,6 +56,36 @@ class CsvExporter @Inject constructor(
         openWriter(uri).use { writer ->
             writer.writeNext(CSV_HEADERS)
             SAMPLE_ROWS.forEach { writer.writeNext(it) }
+        }
+    }
+
+    /**
+     * Creates a temporary CSV file and returns a Intent chooser
+     * to share products directly via WhatsApp, Email, Bluetooth, etc.
+     */
+    suspend fun createShareCsvIntent(products: List<Product>): Intent = withContext(Dispatchers.IO) {
+        val file = File(context.cacheDir, "bhaavbook_products.csv")
+        CSVWriter(OutputStreamWriter(FileOutputStream(file), Charsets.UTF_8)).use { writer ->
+            writer.writeNext(CSV_HEADERS)
+            products.forEach { writer.writeNext(it.toCsvRow()) }
+        }
+
+        val contentUri: Uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            putExtra(Intent.EXTRA_SUBJECT, "BhaavBook Product Prices CSV")
+            putExtra(Intent.EXTRA_TEXT, "Here is the CSV file containing product prices from BhaavBook.")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        Intent.createChooser(sendIntent, "Share BhaavBook CSV via").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
     }
 

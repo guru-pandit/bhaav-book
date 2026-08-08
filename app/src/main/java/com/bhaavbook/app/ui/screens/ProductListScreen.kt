@@ -1,9 +1,14 @@
 package com.bhaavbook.app.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,23 +25,33 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -64,9 +79,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,8 +96,12 @@ import com.bhaavbook.app.data.model.Product
 import com.bhaavbook.app.data.repository.ProductFilter
 import com.bhaavbook.app.data.repository.SortOrder
 import com.bhaavbook.app.data.settings.PriceFontSize
+import com.bhaavbook.app.ui.theme.Cream
+import com.bhaavbook.app.ui.theme.CreamDark
+import com.bhaavbook.app.ui.theme.Gold
+import com.bhaavbook.app.ui.theme.Maroon
+import com.bhaavbook.app.ui.theme.Terracotta
 import com.bhaavbook.app.ui.viewmodel.ProductListViewModel
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,12 +114,18 @@ fun ProductListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    // Selected product for the big price bottom sheet
+    // SAF launcher for CSV export
+    val exportCsvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.exportToCsvUri(it) }
+    }
+
     var selectedProduct by rememberSaveable { mutableStateOf<Long?>(null) }
     var showSortSheet by rememberSaveable { mutableStateOf(false) }
-    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     // Auto-focus search
     val focusRequester = remember { FocusRequester() }
@@ -107,7 +135,7 @@ fun ProductListScreen(
         }
     }
 
-    // Snackbar with undo
+    // Snackbar listener with undo
     LaunchedEffect(uiState.snackbarMessage) {
         val msg = uiState.snackbarMessage ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
@@ -123,43 +151,113 @@ fun ProductListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Display Chaitanya Stores Brand Logo
+                        Image(
+                            painter = painterResource(id = R.drawable.logo_master),
+                            contentDescription = "Chaitanya Stores Logo",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Chaitanya Stores",
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 19.sp,
+                                color = Cream
+                            )
+                            Text(
+                                text = "${uiState.products.size} Items in Price List",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Gold
+                            )
+                        }
+                    }
+                },
                 actions = {
-                    IconButton(onClick = onImportCsv) {
+                    IconButton(onClick = { viewModel.shareCsv(context) }) {
                         Icon(
-                            Icons.Outlined.FileOpen,
-                            contentDescription = stringResource(R.string.import_csv)
+                            Icons.Outlined.Share,
+                            contentDescription = "Share CSV via WhatsApp",
+                            tint = Cream
                         )
                     }
                     IconButton(onClick = { showSortSheet = true }) {
                         Icon(
                             Icons.Filled.FilterList,
-                            contentDescription = stringResource(R.string.sort_and_filter)
+                            contentDescription = stringResource(R.string.sort_and_filter),
+                            tint = Cream
                         )
                     }
-                    IconButton(onClick = onSettings) {
+                    IconButton(onClick = { showMenu = true }) {
                         Icon(
-                            Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.settings)
+                            Icons.Filled.MoreVert,
+                            contentDescription = "More options",
+                            tint = Cream
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier.background(Cream)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Share CSV (WhatsApp / Email)") },
+                            onClick = {
+                                showMenu = false
+                                viewModel.shareCsv(context)
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, tint = Maroon) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Export CSV to Storage") },
+                            onClick = {
+                                showMenu = false
+                                exportCsvLauncher.launch("chaitanya_stores_prices.csv")
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.FileDownload, contentDescription = null, tint = Maroon) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Import CSV File") },
+                            onClick = {
+                                showMenu = false
+                                onImportCsv()
+                            },
+                            leadingIcon = { Icon(Icons.Outlined.FileUpload, contentDescription = null, tint = Maroon) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Settings") },
+                            onClick = {
+                                showMenu = false
+                                onSettings()
+                            },
+                            leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null, tint = Maroon) }
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = Maroon,
+                    titleContentColor = Cream,
+                    actionIconContentColor = Cream
                 )
             )
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddProduct,
-                containerColor = MaterialTheme.colorScheme.primary
+                shape = CircleShape,
+                containerColor = Terracotta,
+                contentColor = Cream
             ) {
                 Icon(
                     Icons.Filled.Add,
                     contentDescription = stringResource(R.string.add_product),
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }
@@ -168,9 +266,10 @@ fun ProductListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .background(Cream)
         ) {
-            // ─── Pinned search bar ───────────────────────────────────────
-            SearchBar(
+            // ─── Warm Styled Search Bar ─────────────────────────────────
+            ChaitanyaSearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = viewModel::onSearchQueryChange,
                 onClear = viewModel::clearSearch,
@@ -179,9 +278,9 @@ fun ProductListScreen(
                     .focusRequester(focusRequester)
             )
 
-            // ─── Filter chips ────────────────────────────────────────────
+            // ─── Filter Chips Row ───────────────────────────────────────
             if (uiState.categories.isNotEmpty() || uiState.brands.isNotEmpty()) {
-                FilterChipRow(
+                ChaitanyaFilterChipRow(
                     categories = uiState.categories,
                     brands = uiState.brands,
                     activeFilter = uiState.activeFilter,
@@ -189,23 +288,25 @@ fun ProductListScreen(
                 )
             }
 
-            // ─── Product list or empty state ─────────────────────────────
+            // ─── Product List or Empty State ─────────────────────────────
             if (!uiState.isLoading && uiState.products.isEmpty()) {
-                EmptyState(
+                ChaitanyaEmptyState(
                     isSearching = uiState.searchQuery.isNotBlank(),
                     onAddProduct = onAddProduct,
-                    onImportCsv = onImportCsv
+                    onImportCsv = onImportCsv,
+                    onShareCsv = { viewModel.shareCsv(context) }
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 80.dp) // FAB clearance
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(
                         items = uiState.products,
                         key = { it.id }
                     ) { product ->
-                        ProductRow(
+                        ChaitanyaProductCard(
                             product = product,
                             currencySymbol = uiState.settings.currencySymbol,
                             priceFontSize = uiState.settings.priceFontSize,
@@ -217,7 +318,7 @@ fun ProductListScreen(
         }
     }
 
-    // ─── Sort bottom sheet ───────────────────────────────────────────────
+    // ─── Sort Bottom Sheet ───────────────────────────────────────────────
     if (showSortSheet) {
         SortSheet(
             currentSort = uiState.sortOrder,
@@ -229,7 +330,7 @@ fun ProductListScreen(
         )
     }
 
-    // ─── Big price bottom sheet ───────────────────────────────────────────
+    // ─── Big Price Bottom Sheet ───────────────────────────────────────────
     selectedProduct?.let { id ->
         val product = uiState.products.firstOrNull { it.id == id }
         if (product != null) {
@@ -253,45 +354,70 @@ fun ProductListScreen(
 }
 
 // ============================================================================
-// Sub-components
+// Chaitanya Stores Styled Sub-Components
 // ============================================================================
 
 @Composable
-private fun SearchBar(
+private fun ChaitanyaSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onClear: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    TextField(
-        value = query,
-        onValueChange = onQueryChange,
+    Surface(
         modifier = modifier
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(50)),
-        placeholder = { Text("Search by name, brand, category…") },
-        leadingIcon = {
-            Icon(Icons.Filled.Search, contentDescription = "Search")
-        },
-        trailingIcon = {
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .border(1.dp, Gold, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
+        color = CreamDark
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.Search,
+                contentDescription = "Search",
+                tint = Terracotta
+            )
+            Spacer(Modifier.width(10.dp))
+            TextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                placeholder = {
+                    Text(
+                        "Search item name, brand, or category…",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                ),
+                textStyle = MaterialTheme.typography.bodyLarge
+            )
             AnimatedVisibility(visible = query.isNotBlank(), enter = fadeIn(), exit = fadeOut()) {
                 IconButton(onClick = onClear) {
-                    Icon(Icons.Filled.Clear, contentDescription = "Clear search")
+                    Icon(
+                        Icons.Filled.Clear,
+                        contentDescription = "Clear search",
+                        tint = Terracotta
+                    )
                 }
             }
-        },
-        singleLine = true,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent
-        )
-    )
+        }
+    }
 }
 
 @Composable
-private fun FilterChipRow(
+private fun ChaitanyaFilterChipRow(
     categories: List<String>,
     brands: List<String>,
     activeFilter: ProductFilter,
@@ -299,10 +425,9 @@ private fun FilterChipRow(
 ) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // "In stock only" chip
         item {
             FilterChip(
                 selected = activeFilter is ProductFilter.InStockOnly,
@@ -312,101 +437,139 @@ private fun FilterChipRow(
                         else ProductFilter.InStockOnly
                     )
                 },
-                label = { Text("In stock") }
+                label = { Text("In stock") },
+                shape = RoundedCornerShape(16.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Maroon,
+                    selectedLabelColor = Cream,
+                    containerColor = CreamDark,
+                    labelColor = Maroon
+                )
             )
         }
 
-        // Category chips
         items(categories) { cat ->
             FilterChip(
-                selected = activeFilter is ProductFilter.ByCategory &&
-                    activeFilter.category == cat,
+                selected = activeFilter is ProductFilter.ByCategory && activeFilter.category == cat,
                 onClick = {
                     onFilterChange(
-                        if (activeFilter is ProductFilter.ByCategory && activeFilter.category == cat)
-                            ProductFilter.None
+                        if (activeFilter is ProductFilter.ByCategory && activeFilter.category == cat) ProductFilter.None
                         else ProductFilter.ByCategory(cat)
                     )
                 },
-                label = { Text(cat, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                label = { Text(cat, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                shape = RoundedCornerShape(16.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Maroon,
+                    selectedLabelColor = Cream,
+                    containerColor = CreamDark,
+                    labelColor = Maroon
+                )
             )
         }
 
-        // Brand chips
         items(brands) { brand ->
             FilterChip(
-                selected = activeFilter is ProductFilter.ByBrand &&
-                    activeFilter.brand == brand,
+                selected = activeFilter is ProductFilter.ByBrand && activeFilter.brand == brand,
                 onClick = {
                     onFilterChange(
-                        if (activeFilter is ProductFilter.ByBrand && activeFilter.brand == brand)
-                            ProductFilter.None
+                        if (activeFilter is ProductFilter.ByBrand && activeFilter.brand == brand) ProductFilter.None
                         else ProductFilter.ByBrand(brand)
                     )
                 },
-                label = { Text(brand, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                label = { Text(brand, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                shape = RoundedCornerShape(16.dp),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Maroon,
+                    selectedLabelColor = Cream,
+                    containerColor = CreamDark,
+                    labelColor = Maroon
+                )
             )
         }
     }
 }
 
 @Composable
-private fun ProductRow(
+private fun ChaitanyaProductCard(
     product: Product,
     currencySymbol: String,
     priceFontSize: PriceFontSize,
     onClick: () -> Unit
 ) {
     val isOutOfStock = !product.inStock
-    val textAlpha = if (isOutOfStock) 0.5f else 1f
+    val cardAlpha = if (isOutOfStock) 0.5f else 1.0f
 
-    Surface(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .semantics { contentDescription = "${product.displayTitle} price ${product.sellingPrice}" },
-        color = Color.Transparent
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = CreamDark
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: name + subtitle
+            // Left Column
             Column(modifier = Modifier.weight(1f)) {
+                if (!product.brand.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Gold,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = product.brand.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Maroon,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
                 Text(
-                    text = product.displayTitle,
+                    text = product.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = textAlpha),
+                    color = Maroon.copy(alpha = cardAlpha),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.height(2.dp))
+
+                Spacer(Modifier.height(4.dp))
+
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val subtitle = buildString {
+                    val unitStr = buildString {
                         if (product.quantityValue != null) append("${product.quantityValue.toLong()} ")
                         append(product.unit.shortLabel)
                         product.category?.let { append(" · $it") }
                     }
                     Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = textAlpha)
+                        text = unitStr,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = cardAlpha)
                     )
+
                     if (isOutOfStock) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                            color = MaterialTheme.colorScheme.errorContainer
                         ) {
                             Text(
                                 text = "Out of stock",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -416,30 +579,27 @@ private fun ProductRow(
 
             Spacer(Modifier.width(12.dp))
 
-            // Right: price (large, high contrast)
-            val priceTextSize = when (priceFontSize) {
-                PriceFontSize.NORMAL -> 18.sp
-                PriceFontSize.LARGE -> 22.sp
+            // Right Column: Terracotta Price Badge
+            val priceSp = when (priceFontSize) {
+                PriceFontSize.NORMAL -> 20.sp
+                PriceFontSize.LARGE -> 24.sp
                 PriceFontSize.EXTRA_LARGE -> 28.sp
             }
-            Text(
-                text = "$currencySymbol${product.sellingPrice.toDisplayPrice()}",
-                fontSize = priceTextSize,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = textAlpha),
-                maxLines = 1
-            )
+
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Terracotta.copy(alpha = if (isOutOfStock) 0.4f else 1.0f)
+            ) {
+                Text(
+                    text = "$currencySymbol${product.sellingPrice.toDisplayPrice()}",
+                    fontSize = priceSp,
+                    fontWeight = FontWeight.Black,
+                    color = Cream,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
         }
     }
-
-    // Thin divider
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(0.5.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant)
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -451,46 +611,53 @@ private fun SortSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Cream
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             Text(
-                "Sort by",
+                "Sort Products",
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp)
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+                color = Maroon,
+                modifier = Modifier.padding(bottom = 12.dp)
             )
             val options = listOf(
                 SortOrder.NAME_ASC to "Name A–Z",
                 SortOrder.BRAND_ASC to "Brand A–Z",
                 SortOrder.PRICE_ASC to "Price: Low → High",
                 SortOrder.PRICE_DESC to "Price: High → Low",
-                SortOrder.RECENTLY_UPDATED to "Recently updated"
+                SortOrder.RECENTLY_UPDATED to "Recently Updated"
             )
             options.forEach { (order, label) ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSortChange(order) }
-                        .padding(vertical = 4.dp),
+                        .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RadioButton(
                         selected = currentSort == order,
-                        onClick = { onSortChange(order) }
+                        onClick = { onSortChange(order) },
+                        colors = RadioButtonDefaults.colors(selectedColor = Terracotta)
                     )
-                    Text(label, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(Modifier.width(8.dp))
+                    Text(label, style = MaterialTheme.typography.bodyLarge, color = Maroon)
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-private fun EmptyState(
+private fun ChaitanyaEmptyState(
     isSearching: Boolean,
     onAddProduct: () -> Unit,
-    onImportCsv: () -> Unit
+    onImportCsv: () -> Unit,
+    onShareCsv: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -499,39 +666,48 @@ private fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            Icons.Outlined.Inventory2,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-        )
-        Spacer(Modifier.height(16.dp))
+        Surface(
+            shape = CircleShape,
+            color = CreamDark,
+            modifier = Modifier
+                .size(100.dp)
+                .border(2.dp, Gold, CircleShape)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Outlined.Inventory2,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = Terracotta
+                )
+            }
+        }
+        Spacer(Modifier.height(24.dp))
         Text(
-            text = if (isSearching) "No products found" else "BhaavBook",
+            text = if (isSearching) "No matching items" else "Chaitanya Stores",
+            fontFamily = FontFamily.Serif,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = Maroon
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = if (isSearching) "Try different keywords"
+            text = if (isSearching) "Try searching with a different name or brand."
                    else stringResource(R.string.tagline),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center
         )
         if (!isSearching) {
             Spacer(Modifier.height(32.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(onClick = onAddProduct) { Text("Add product") }
-                TextButton(onClick = onImportCsv) { Text("Import CSV") }
+                TextButton(onClick = onAddProduct) { Text("+ Add Product", color = Terracotta) }
+                TextButton(onClick = onImportCsv) { Text("Import CSV", color = Terracotta) }
+                TextButton(onClick = onShareCsv) { Text("Share CSV", color = Terracotta) }
             }
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// Price formatter
-// ---------------------------------------------------------------------------
 private fun Double.toDisplayPrice(): String =
     if (this == kotlin.math.floor(this) && this < 1_000_000) this.toLong().toString()
     else "%.2f".format(this)

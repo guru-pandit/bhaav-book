@@ -2,31 +2,17 @@ package com.bhaavbook.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Deep indigo brand palette (matches the price-tag icon background)
-val Indigo10  = Color(0xFF0D0B4E)
-val Indigo20  = Color(0xFF1A1770)
-val Indigo30  = Color(0xFF2722A0)
-val Indigo40  = Color(0xFF3D36CC)   // primary
-val Indigo80  = Color(0xFFB8B4FF)
-val Indigo90  = Color(0xFFE0DFFF)
-val Indigo95  = Color(0xFFF1F0FF)
-val Indigo99  = Color(0xFFFFFBFF)
+// Chaitanya Stores — Traditional, Warm, Premium Color Palette
+val Cream            = Color(0xFFFBF3E7) // Main background
+val CreamDark        = Color(0xFFF2E4CD) // Secondary background / cards / surfaces
+val Terracotta       = Color(0xFFC1622D) // Primary — buttons, links, prices
+val TerracottaDark   = Color(0xFFA34F22) // Pressed/hover primary
+val Maroon           = Color(0xFF6B1E23) // Headers, top app bar, structural emphasis
+val MaroonDark       = Color(0xFF4A1418) // Dark mode / deep header background
+val Gold             = Color(0xFFC99A2E) // Accents, badges, dividers (sparingly)
+val GoldLight        = Color(0xFFE4C877) // Subtle highlight fill
+val Charcoal         = Color(0xFF2A211C) // Body text (rich charcoal, not pure black)
+val CharcoalVariant  = Color(0xFF5E524A) // Secondary text / captions
 
-val Saffron40 = Color(0xFFB35A00)   // secondary / accent
-val Saffron80 = Color(0xFFFFB86E)
-val Saffron90 = Color(0xFFFFDDB8)
-
-val Gold40    = Color(0xFF695F00)
-val Gold80    = Color(0xFFF0DC52)
-val Gold90    = Color(0xFFEFE4A7)
-
-val Error40   = Color(0xFFBA1A1A)
-val Error80   = Color(0xFFFFB4AB)
-val Error90   = Color(0xFFFFDAD6)
-
-val NeutralVar30 = Color(0xFF444060)
-val NeutralVar80 = Color(0xFFC9C4D9)
-val NeutralVar90 = Color(0xFFE6E0F5)
-val NeutralVar95 = Color(0xFFF4EEFF)
-
-val OutOfStockGrey = Color(0xFF9E9E9E)
+val ErrorRed         = Color(0xFF9E2A2B) // Error states
+val ErrorContainer   = Color(0xFFFADBD8) // Error background

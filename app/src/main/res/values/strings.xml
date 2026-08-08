@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">BhaavBook</string>
+    <string name="app_name">Chaitanya Stores</string>
     <string name="tagline">Every price, in one second.</string>
     <string name="import_csv">Import CSV</string>
     <string name="sort_and_filter">Sort &amp; Filter</string>
