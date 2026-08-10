@@ -207,6 +207,48 @@ Local commands (for reference — normally run by CI, not on a dev machine):
 ./gradlew assembleDebug --stacktrace
 ```
 
+### 8.1 One-time release signing setup
+
+**Android will not install an unsigned APK** — it fails with "invalid package" / "There was a problem parsing the package". Until the four secrets below exist, the release job produces `app-release-unsigned.apk` and CI labels the artifact `UNSIGNED-cannot-be-installed`. Use the debug APK in the meantime; it is signed with the standard Android debug key and installs fine.
+
+Generating the key needs `keytool`, which ships with any JDK. With no JDK on the machine, Docker gives you one without installing anything permanently — run this **once**, from the repo root:
+
+```bash
+docker run --rm -v "$PWD":/work -w /work eclipse-temurin:17-jdk \
+  keytool -genkeypair -v \
+    -keystore release.keystore \
+    -alias bhaavbook \
+    -keyalg RSA -keysize 2048 -validity 10000 \
+    -storepass 'CHOOSE_A_STRONG_PASSWORD' \
+    -keypass  'CHOOSE_A_STRONG_PASSWORD' \
+    -dname "CN=Chaitanya Stores, O=Chaitanya Stores, L=Pune, C=IN"
+```
+
+Then base64-encode it for GitHub:
+
+```bash
+base64 -w0 release.keystore > release.keystore.b64   # Git Bash / Linux
+```
+
+Add these four repository secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Value |
+|---|---|
+| `RELEASE_KEYSTORE_BASE64` | the entire contents of `release.keystore.b64` |
+| `RELEASE_KEYSTORE_PASSWORD` | the password chosen above |
+| `RELEASE_KEY_ALIAS` | `bhaavbook` |
+| `RELEASE_KEY_PASSWORD` | the password chosen above |
+
+Then delete the local copies — `release.keystore` and `release.keystore.b64` are both covered by `.gitignore`, but they should not sit on disk either:
+
+```bash
+rm release.keystore release.keystore.b64
+```
+
+> **Keep a backup of the keystore somewhere safe and private before deleting it.** Android will only let an installed app be updated by an APK signed with the *same* key. Lose this key and the only way to ship an update is to uninstall first — which deletes the shop's entire price list. (Recoverable only if they exported a CSV beforehand.)
+>
+> Never commit the keystore, and never paste it into a CI log or a workflow artifact — on a public repository both are readable by anyone.
+
 ---
 
 ## 9. Developer Guidelines for AI Agents

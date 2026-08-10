@@ -17,4 +17,5 @@ captures/
 # a base64 secret at build time and the file is deleted afterwards.
 *.jks
 *.keystore
+*.keystore.b64
 keystore.properties
