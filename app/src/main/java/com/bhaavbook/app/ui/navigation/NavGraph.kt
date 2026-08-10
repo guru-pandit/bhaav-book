@@ -29,23 +29,16 @@ fun NavGraph(navController: NavHostController) {
         }
 
         composable(Screen.AddProduct.route) {
-            ProductEditScreen(
-                productId = 0L,
-                onNavigateUp = { navController.popBackStack() }
-            )
+            ProductEditScreen(onNavigateUp = { navController.popBackStack() })
         }
 
         composable(
             route = Screen.EditProduct.route,
-            arguments = listOf(
-                navArgument("productId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val productId = backStackEntry.arguments?.getLong("productId") ?: 0L
-            ProductEditScreen(
-                productId = productId,
-                onNavigateUp = { navController.popBackStack() }
-            )
+            arguments = listOf(navArgument(Screen.EditProduct.ARG_PRODUCT_ID) {
+                type = NavType.LongType
+            })
+        ) {
+            ProductEditScreen(onNavigateUp = { navController.popBackStack() })
         }
 
         composable(Screen.CsvImport.route) {

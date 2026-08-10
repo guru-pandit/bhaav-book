@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The splash canvas is 288dp and the icon is expected to occupy the inner
+    192dp, so the 48dp inset keeps the logo inside the safe area on every OEM
+    launcher instead of being cropped by the circular mask some of them apply.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/logo_master"
+    android:insetLeft="48dp"
+    android:insetTop="48dp"
+    android:insetRight="48dp"
+    android:insetBottom="48dp" />

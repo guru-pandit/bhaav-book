@@ -63,7 +63,13 @@ interface ProductDao {
     @Query("SELECT * FROM products ORDER BY LOWER(name) ASC")
     fun getAllByName(): Flow<List<Product>>
 
-    @Query("SELECT * FROM products ORDER BY LOWER(brand) ASC, LOWER(name) ASC")
+    /** Unbranded items sort last rather than first, where NULLs would land. */
+    @Query(
+        """
+        SELECT * FROM products
+        ORDER BY (brand IS NULL OR TRIM(brand) = '') ASC, LOWER(brand) ASC, LOWER(name) ASC
+        """
+    )
     fun getAllByBrand(): Flow<List<Product>>
 
     @Query("SELECT * FROM products ORDER BY selling_price ASC, LOWER(name) ASC")
@@ -114,45 +120,48 @@ interface ProductDao {
     // -----------------------------------------------------------------------
 
     @Query(
-        "SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category ASC"
+        """
+        SELECT DISTINCT category FROM products
+        WHERE category IS NOT NULL AND TRIM(category) != ''
+        ORDER BY LOWER(category) ASC
+        """
     )
     fun getAllCategories(): Flow<List<String>>
 
     @Query(
-        "SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL ORDER BY brand ASC"
+        """
+        SELECT DISTINCT brand FROM products
+        WHERE brand IS NOT NULL AND TRIM(brand) != ''
+        ORDER BY LOWER(brand) ASC
+        """
     )
     fun getAllBrands(): Flow<List<String>>
 
     // -----------------------------------------------------------------------
-    // Count / duplicate helpers
+    // Count / export
     // -----------------------------------------------------------------------
 
     @Query("SELECT COUNT(*) FROM products")
     suspend fun count(): Int
 
-    @Query(
-        """
-        SELECT COUNT(*) FROM products
-        WHERE LOWER(name) = LOWER(:name)
-          AND ((:brand IS NULL AND brand IS NULL) OR LOWER(brand) = LOWER(:brand))
-          AND id != :excludeId
-        """
-    )
-    suspend fun countByBrandAndName(name: String, brand: String?, excludeId: Long = 0L): Int
-
-    // -----------------------------------------------------------------------
-    // Export / snapshot
-    // -----------------------------------------------------------------------
+    @Query("SELECT COUNT(*) FROM products")
+    fun observeCount(): Flow<Int>
 
     @Query("SELECT * FROM products ORDER BY LOWER(name) ASC")
     suspend fun getAllSnapshot(): List<Product>
 
     // -----------------------------------------------------------------------
-    // Batch upsert for CSV import
+    // CSV import commit
     // -----------------------------------------------------------------------
 
+    /**
+     * Commits a whole CSV import atomically: either every row lands or none
+     * does, so a failure part-way through cannot leave the price list holding
+     * half of a spreadsheet.
+     */
     @Transaction
-    suspend fun upsertBatch(products: List<Product>) {
-        insertAll(products)
+    suspend fun applyImport(toInsert: List<Product>, toUpdate: List<Product>) {
+        toInsert.chunked(500).forEach { insertAll(it) }
+        toUpdate.forEach { update(it) }
     }
 }

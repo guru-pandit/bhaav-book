@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Framework-level colours. These exist so the window is already the right
+    colour before Compose draws its first frame — otherwise launching the app
+    flashes the platform's white window background.
+-->
+<resources>
+    <color name="window_background">#FBF3E7</color>
+    <color name="brand_maroon">#6B1E23</color>
+    <color name="brand_gold">#C99A2E</color>
+    <color name="brand_cream">#FBF3E7</color>
+</resources>

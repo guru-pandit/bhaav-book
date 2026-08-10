@@ -1,11 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.BhaavBook" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        The app draws its own chrome in Compose, so this theme's only jobs are to
+        paint the window the right colour before the first frame and to hand the
+        system bars over to the app. Bar colours are set to transparent rather
+        than to a brand colour: from Android 15 the framework ignores them
+        anyway, and the top app bar paints behind the status bar itself.
+    -->
+    <style name="Theme.BhaavBook" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 
     <style name="Theme.BhaavBook.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#1A1770</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="windowSplashScreenBackground">@color/brand_maroon</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
         <item name="postSplashScreenTheme">@style/Theme.BhaavBook</item>
     </style>
 

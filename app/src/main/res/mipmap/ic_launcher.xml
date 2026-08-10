@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Launcher icon for Android 7.x, which predates adaptive icons and would
+    otherwise fall back to the system's blank placeholder. Android 8 and up pick
+    up the adaptive icon in mipmap-anydpi-v26 instead.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_background" />
+    <item
+        android:drawable="@drawable/ic_launcher_foreground"
+        android:left="4dp"
+        android:top="4dp"
+        android:right="4dp"
+        android:bottom="4dp" />
+</layer-list>

@@ -20,10 +20,6 @@ sealed class ProductFilter {
     data object InStockOnly : ProductFilter()
 }
 
-data class DuplicateCheckResult(
-    val existing: Product? = null
-)
-
 @Singleton
 class ProductRepository @Inject constructor(
     private val dao: ProductDao
@@ -34,43 +30,48 @@ class ProductRepository @Inject constructor(
     // -----------------------------------------------------------------------
 
     /**
-     * Returns a Flow of products matching [query], sorted by [sortOrder],
-     * post-filtered by [filter].
+     * Returns a Flow of products matching [query], filtered by [filter] and
+     * ordered by [sortOrder].
      *
      * Search strategy:
-     * - Blank query → sorted full-table query (fast, no FTS overhead)
-     * - 1 char      → LIKE fallback (FTS min token = 3 chars by default)
-     * - 2+ chars    → FTS4 with all tokens ANDed and prefix wildcards,
-     *                 enabling word-order independent search:
-     *                 "cycle chandan" → "cycle* chandan*"
-     *                 which matches "Cycle — Agarbatti Chandan"
+     * - Blank query → sorted full-table query, no FTS overhead.
+     * - 1 char, or a query with no usable tokens → `LIKE %q%`.
+     * - 2+ chars → FTS4, every token prefix-matched and ANDed, so word order
+     *   doesn't matter: `"cycle chandan"` finds `"Cycle — Agarbatti Chandan"`.
+     *   If FTS throws (a stray operator survived cleaning, corrupt index),
+     *   the flow degrades to LIKE rather than showing the user an error.
+     *
+     * Search hits are re-ordered by relevance (see [relevanceRank]) so the
+     * item the shopkeeper is typing towards lands first. An explicitly chosen
+     * sort order other than the default [SortOrder.NAME_ASC] always wins.
      */
     fun getProducts(
         query: String,
         sortOrder: SortOrder,
         filter: ProductFilter
     ): Flow<List<Product>> {
+        val trimmed = query.trim()
+        val ftsQuery = buildFtsQuery(trimmed)
+
         val baseFlow: Flow<List<Product>> = when {
-            query.isBlank() -> sortedFlow(sortOrder)
-            query.length < 2 -> dao.searchLike(query)
-            else -> dao.searchFts(buildFtsQuery(query))
-                .catch { emitAll(dao.searchLike(query)) } // fallback on FTS error
+            trimmed.isEmpty() -> sortedFlow(sortOrder)
+            trimmed.length < 2 || ftsQuery.isEmpty() -> dao.searchLike(trimmed)
+            else -> dao.searchFts(ftsQuery).catch { emitAll(dao.searchLike(trimmed)) }
         }
 
         return baseFlow.map { list ->
-            when (filter) {
-                is ProductFilter.None -> list
-                is ProductFilter.ByCategory -> list.filter { product ->
-                    product.category?.equals(filter.category, ignoreCase = true) == true
-                }
-                is ProductFilter.ByBrand -> list.filter { product ->
-                    product.brand?.equals(filter.brand, ignoreCase = true) == true
-                }
-                is ProductFilter.InStockOnly -> list.filter { product ->
-                    product.inStock
-                }
-            }
+            val filtered = list.filter { filter.matches(it) }
+            // The full-table queries are already sorted in SQL; search results
+            // come back name-ordered from FTS and have to be ordered here.
+            if (trimmed.isEmpty()) filtered else filtered.orderSearchHits(trimmed, sortOrder)
         }
+    }
+
+    private fun ProductFilter.matches(product: Product): Boolean = when (this) {
+        is ProductFilter.None -> true
+        is ProductFilter.InStockOnly -> product.inStock
+        is ProductFilter.ByCategory -> product.category.equalsIgnoreCase(category)
+        is ProductFilter.ByBrand -> product.brand.equalsIgnoreCase(brand)
     }
 
     private fun sortedFlow(sortOrder: SortOrder): Flow<List<Product>> = when (sortOrder) {
@@ -82,20 +83,67 @@ class ProductRepository @Inject constructor(
     }
 
     /**
-     * Converts a raw search query into an FTS4 MATCH expression.
+     * Converts a raw search query into an FTS4 MATCH expression: every token
+     * gets a `*` suffix so partial words match, and everything FTS4 treats as
+     * an operator is stripped first.
      *
-     * Each whitespace-separated token gets a '*' suffix (prefix search).
-     * Special FTS4 characters are stripped to avoid syntax errors.
+     * `"chandan cycle"` → `"chandan* cycle*"`
      *
-     * "chandan cycle" → "chandan* cycle*"
-     * → FTS4 AND-matches both tokens across name/brand/category
-     * → finds "Cycle — Agarbatti Chandan"
+     * Returns `""` when nothing searchable is left (e.g. the user typed only
+     * punctuation) — callers must treat that as "don't run an FTS query",
+     * because `MATCH ''` is an FTS4 syntax error.
      */
     fun buildFtsQuery(raw: String): String {
-        val cleaned = raw.replace(Regex("""["^()\[\]{}|\\]"""), " ").trim()
-        return cleaned.split(Regex("\\s+"))
+        val cleaned = raw.replace(FTS_OPERATORS, " ").trim()
+        if (cleaned.isEmpty()) return ""
+        return cleaned.split(WHITESPACE)
             .filter { it.isNotBlank() }
-            .joinToString(" ") { "${it}*" }
+            .joinToString(" ") { "$it*" }
+    }
+
+    /**
+     * Orders search hits.
+     *
+     * With the default sort, that means relevance: a name that starts with what
+     * was typed beats one that merely contains it, which beats a hit that only
+     * came from the brand or category column. When the user has actually picked
+     * a sort order, that order is honoured instead — the point of choosing
+     * "price high to low" is to see the most expensive match first.
+     */
+    private fun List<Product>.orderSearchHits(
+        query: String,
+        sortOrder: SortOrder
+    ): List<Product> {
+        val byName = compareBy<Product> { it.name.lowercase() }
+        return when (sortOrder) {
+            SortOrder.NAME_ASC -> {
+                val needle = query.lowercase()
+                sortedWith(compareBy<Product> { it.relevanceRank(needle) }.then(byName))
+            }
+            SortOrder.BRAND_ASC -> sortedWith(
+                compareBy<Product> { it.brand.isNullOrBlank() }
+                    .thenBy { it.brand?.lowercase().orEmpty() }
+                    .then(byName)
+            )
+            SortOrder.PRICE_ASC -> sortedWith(compareBy<Product> { it.sellingPrice }.then(byName))
+            SortOrder.PRICE_DESC -> sortedWith(
+                compareByDescending<Product> { it.sellingPrice }.then(byName)
+            )
+            SortOrder.RECENTLY_UPDATED -> sortedByDescending { it.updatedAt }
+        }
+    }
+
+    private fun Product.relevanceRank(needle: String): Int {
+        val lowerName = name.lowercase()
+        val lowerBrand = brand?.lowercase().orEmpty()
+        return when {
+            lowerName == needle -> 0
+            lowerName.startsWith(needle) -> 1
+            lowerBrand.startsWith(needle) -> 2
+            lowerName.split(WHITESPACE).any { it.startsWith(needle) } -> 3
+            lowerName.contains(needle) -> 4
+            else -> 5
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -120,27 +168,19 @@ class ProductRepository @Inject constructor(
     // -----------------------------------------------------------------------
 
     suspend fun checkDuplicate(name: String, brand: String?, excludeId: Long = 0L): Product? =
-        dao.getByBrandAndName(name, brand)?.takeIf { it.id != excludeId }
+        dao.getByBrandAndName(name.trim(), brand?.trim())?.takeIf { it.id != excludeId }
 
     // -----------------------------------------------------------------------
-    // Dropdowns
+    // Filter chips / autocomplete
     // -----------------------------------------------------------------------
 
-    fun getAllCategories(): Flow<List<String>> = dao.getAllCategories()
+    /**
+     * Distinct categories, collapsed case-insensitively so `"Agarbatti"` typed
+     * once as `"agarbatti"` does not produce two filter chips.
+     */
+    fun getAllCategories(): Flow<List<String>> = dao.getAllCategories().map { it.distinctByCase() }
 
-    fun getAllBrands(): Flow<List<String>> = dao.getAllBrands()
-
-    // -----------------------------------------------------------------------
-    // Bulk import
-    // -----------------------------------------------------------------------
-
-    suspend fun bulkInsert(products: List<Product>, batchSize: Int = 100) {
-        products.chunked(batchSize).forEach { dao.insertAll(it) }
-    }
-
-    suspend fun bulkUpdate(products: List<Product>) {
-        products.forEach { dao.update(it) }
-    }
+    fun getAllBrands(): Flow<List<String>> = dao.getAllBrands().map { it.distinctByCase() }
 
     // -----------------------------------------------------------------------
     // Export
@@ -149,4 +189,25 @@ class ProductRepository @Inject constructor(
     suspend fun getAllSnapshot(): List<Product> = dao.getAllSnapshot()
 
     suspend fun count(): Int = dao.count()
+
+    /** Total items in the price list, regardless of any active search or filter. */
+    fun observeCount(): Flow<Int> = dao.observeCount()
+
+    private companion object {
+        /**
+         * Everything FTS4 reads as syntax rather than text: quotes, grouping
+         * brackets, the `NEAR`/`OR` escapes, the `-` NOT prefix, the `:`
+         * column qualifier and the `*` we add ourselves.
+         */
+        val FTS_OPERATORS = Regex("""["^()\[\]{}|\\*:\-–—,;]""")
+        val WHITESPACE = Regex("\\s+")
+    }
 }
+
+private fun String?.equalsIgnoreCase(other: String): Boolean =
+    this != null && this.trim().equals(other.trim(), ignoreCase = true)
+
+private fun List<String>.distinctByCase(): List<String> =
+    filter { it.isNotBlank() }
+        .distinctBy { it.trim().lowercase() }
+        .sortedBy { it.trim().lowercase() }

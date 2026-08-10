@@ -9,36 +9,44 @@ import com.bhaavbook.app.csv.CsvImporter
 import com.bhaavbook.app.csv.CsvParser
 import com.bhaavbook.app.csv.DuplicateStrategy
 import com.bhaavbook.app.csv.ImportResult
-import com.bhaavbook.app.csv.ImportRowError
 import com.bhaavbook.app.csv.ParsedCsvResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 sealed class ImportStep {
-    /** User picks a CSV file. */
+    /** Pick a file. */
     data object PickFile : ImportStep()
-    /** Show first 10 rows for preview. */
+
+    /** Show the first rows so the user can confirm the file parsed sensibly. */
     data class Preview(val parsed: ParsedCsvResult) : ImportStep()
-    /** User maps columns to app fields. */
+
+    /** Match each CSV column to a product field. */
     data class ColumnMap(val parsed: ParsedCsvResult, val mapping: ColumnMapping) : ImportStep()
-    /** Import in progress. */
+
     data class Importing(val done: Int, val total: Int) : ImportStep()
-    /** Import complete. */
-    data class Done(val result: ImportResult) : ImportStep()
-    /** Error reading/parsing the file. */
-    data class ParseError(val message: String) : ImportStep()
+
+    /**
+     * Finished. [sourceHeaders] are the headers of the imported file, kept so
+     * the failed-rows export lines its columns up with the original.
+     */
+    data class Done(val result: ImportResult, val sourceHeaders: List<String>) : ImportStep()
+
+    data class Failed(val message: String) : ImportStep()
 }
 
 data class CsvImportUiState(
     val step: ImportStep = ImportStep.PickFile,
-    val duplicateStrategy: DuplicateStrategy = DuplicateStrategy.SKIP,
-    val isExportingErrors: Boolean = false,
-    val errorExportedUri: Uri? = null
+    val duplicateStrategy: DuplicateStrategy = DuplicateStrategy.SKIP
 )
 
 @HiltViewModel
@@ -51,32 +59,36 @@ class CsvImportViewModel @Inject constructor(
     private val _state = MutableStateFlow(CsvImportUiState())
     val state: StateFlow<CsvImportUiState> = _state.asStateFlow()
 
-    // -----------------------------------------------------------------------
-    // Step navigation
-    // -----------------------------------------------------------------------
+    private val _messages = Channel<UiMessage>(
+        capacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
     fun onFilePicked(uri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val parsed = parser.parse(uri)
-                if (parsed.totalRowCount == 0) {
+        viewModelScope.launch {
+            val parsed = runCatching { withContext(Dispatchers.IO) { parser.parse(uri) } }
+                .getOrElse { error ->
                     _state.value = _state.value.copy(
-                        step = ImportStep.ParseError("The CSV file has no data rows.")
+                        step = ImportStep.Failed(error.readableMessage())
                     )
                     return@launch
                 }
-                _state.value = _state.value.copy(step = ImportStep.Preview(parsed))
-            } catch (e: Exception) {
-                _state.value = _state.value.copy(
-                    step = ImportStep.ParseError(e.message ?: "Failed to read file")
-                )
-            }
+
+            _state.value = _state.value.copy(
+                step = if (parsed.totalRowCount == 0) {
+                    ImportStep.Failed("That file has a header row but no items in it.")
+                } else {
+                    ImportStep.Preview(parsed)
+                }
+            )
         }
     }
 
     fun onPreviewConfirmed(parsed: ParsedCsvResult) {
-        val mapping = ColumnMapping.autoGuess(parsed.headers)
-        _state.value = _state.value.copy(step = ImportStep.ColumnMap(parsed, mapping))
+        _state.value = _state.value.copy(
+            step = ImportStep.ColumnMap(parsed, ColumnMapping.autoGuess(parsed.headers))
+        )
     }
 
     fun onMappingUpdated(parsed: ParsedCsvResult, newMapping: ColumnMapping) {
@@ -90,38 +102,48 @@ class CsvImportViewModel @Inject constructor(
     fun startImport(parsed: ParsedCsvResult, mapping: ColumnMapping) {
         viewModelScope.launch {
             _state.value = _state.value.copy(step = ImportStep.Importing(0, parsed.totalRowCount))
-            val result = importer.import(
-                rows = parsed.rows,
-                mapping = mapping,
-                strategy = _state.value.duplicateStrategy,
-                onProgress = { done, total ->
-                    _state.value = _state.value.copy(step = ImportStep.Importing(done, total))
-                }
-            )
-            _state.value = _state.value.copy(step = ImportStep.Done(result))
+
+            runCatching {
+                importer.import(
+                    rows = parsed.rows,
+                    mapping = mapping,
+                    strategy = _state.value.duplicateStrategy,
+                    onProgress = { done, total ->
+                        _state.value = _state.value.copy(step = ImportStep.Importing(done, total))
+                    }
+                )
+            }.onSuccess { result ->
+                _state.value = _state.value.copy(
+                    step = ImportStep.Done(result, parsed.headers)
+                )
+            }.onFailure { error ->
+                // Nothing was written: the commit is a single transaction.
+                _state.value = _state.value.copy(
+                    step = ImportStep.Failed(
+                        "Nothing was imported — ${error.readableMessage()}"
+                    )
+                )
+            }
         }
     }
 
-    fun exportErrors(uri: Uri, headers: List<String>, errors: List<ImportRowError>) {
+    /** Writes the rows that failed to the SAF document at [uri]. */
+    fun exportErrors(uri: Uri) {
+        val done = _state.value.step as? ImportStep.Done ?: return
         viewModelScope.launch {
-            _state.value = _state.value.copy(isExportingErrors = true)
-            try {
-                exporter.exportErrorRows(uri, headers, errors)
-                _state.value = _state.value.copy(
-                    isExportingErrors = false,
-                    errorExportedUri = uri
-                )
-            } catch (e: Exception) {
-                _state.value = _state.value.copy(isExportingErrors = false)
-            }
+            runCatching { exporter.exportErrorRows(uri, done.sourceHeaders, done.result.errors) }
+                .onSuccess {
+                    _messages.trySend(UiMessage("Saved ${done.result.errors.size} rows to fix"))
+                }
+                .onFailure { _messages.trySend(UiMessage("Could not save: ${it.readableMessage()}")) }
         }
     }
 
     fun saveSampleCsv(uri: Uri) {
         viewModelScope.launch {
-            try {
-                exporter.writeSampleCsv(uri)
-            } catch (_: Exception) {}
+            runCatching { exporter.writeSampleCsv(uri) }
+                .onSuccess { _messages.trySend(UiMessage("Sample file saved")) }
+                .onFailure { _messages.trySend(UiMessage("Could not save: ${it.readableMessage()}")) }
         }
     }
 

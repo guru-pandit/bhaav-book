@@ -1,18 +1,17 @@
 package com.bhaavbook.app.csv
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.bhaavbook.app.data.model.Product
+import com.bhaavbook.app.format.toEditableString
 import com.opencsv.CSVWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
 import java.io.OutputStreamWriter
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,27 +22,35 @@ class CsvExporter @Inject constructor(
 ) {
 
     companion object {
-        /** Canonical header row — matches the import spec exactly. */
+        /** Canonical header row — matches what the importer auto-detects. */
         val CSV_HEADERS = arrayOf(
             "name", "brand", "category", "selling_price", "cost_price",
             "unit", "quantity_value", "in_stock", "notes"
         )
 
-        /** Sample data for the "Download sample CSV" feature. */
+        /** Filled-in rows for the "download a sample file" button. */
         val SAMPLE_ROWS: List<Array<String>> = listOf(
             arrayOf("Agarbatti Chandan", "Cycle", "Agarbatti & Dhoop", "45", "38", "GRAM", "100", "yes", "Fast moving"),
             arrayOf("Kapur Tablet", "Mangaldeep", "Camphor & Wicks", "60", "50", "GRAM", "50", "yes", ""),
             arrayOf("Kumkum", "Moksh", "Kumkum & Haldi", "25", "19", "GRAM", "50", "yes", ""),
-            arrayOf("Cotton Wick Long", "Local", "Camphor & Wicks", "20", "14", "PACKET", "1", "no", "Out of stock"),
+            arrayOf("Cotton Wick Long", "Local", "Camphor & Wicks", "20", "14", "PACKET", "1", "no", ""),
             arrayOf("Til Oil", "Patanjali", "Oil & Ghee", "180", "158", "ML", "500", "yes", "")
         )
+
+        /**
+         * Files handed to other apps live in their own cache subdirectory so the
+         * FileProvider grant covers exactly this, and not everything else the app
+         * happens to have cached.
+         */
+        private const val SHARE_DIR = "shared"
+        private const val SHARE_FILE_NAME = "chaitanya_stores_prices.csv"
     }
 
     // -----------------------------------------------------------------------
-    // CSV Export
+    // Export to a user-chosen location
     // -----------------------------------------------------------------------
 
-    /** Exports all [products] to a CSV file at [uri]. */
+    /** Writes [products] as CSV to the SAF document at [uri]. */
     suspend fun exportToCsv(uri: Uri, products: List<Product>) = withContext(Dispatchers.IO) {
         openWriter(uri).use { writer ->
             writer.writeNext(CSV_HEADERS)
@@ -51,7 +58,7 @@ class CsvExporter @Inject constructor(
         }
     }
 
-    /** Writes a sample CSV template to [uri]. */
+    /** Writes the sample template to the SAF document at [uri]. */
     suspend fun writeSampleCsv(uri: Uri) = withContext(Dispatchers.IO) {
         openWriter(uri).use { writer ->
             writer.writeNext(CSV_HEADERS)
@@ -60,38 +67,12 @@ class CsvExporter @Inject constructor(
     }
 
     /**
-     * Creates a temporary CSV file and returns a Intent chooser
-     * to share products directly via WhatsApp, Email, Bluetooth, etc.
-     */
-    suspend fun createShareCsvIntent(products: List<Product>): Intent = withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, "bhaavbook_products.csv")
-        CSVWriter(OutputStreamWriter(FileOutputStream(file), Charsets.UTF_8)).use { writer ->
-            writer.writeNext(CSV_HEADERS)
-            products.forEach { writer.writeNext(it.toCsvRow()) }
-        }
-
-        val contentUri: Uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
-
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
-            putExtra(Intent.EXTRA_STREAM, contentUri)
-            putExtra(Intent.EXTRA_SUBJECT, "BhaavBook Product Prices CSV")
-            putExtra(Intent.EXTRA_TEXT, "Here is the CSV file containing product prices from BhaavBook.")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-
-        Intent.createChooser(sendIntent, "Share BhaavBook CSV via").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-    }
-
-    /**
-     * Exports only the failed rows from an import as a CSV, with an
-     * extra "error_reason" column so the user knows what to fix.
+     * Writes only the rows that failed an import, with an `error_reason` column
+     * appended, so the user can fix that file and re-import just those rows.
+     *
+     * [originalHeaders] must be the headers of the file that was imported, not
+     * the app's canonical ones: the raw cells are echoed back verbatim, and
+     * pairing them with a different set of headers would misalign every column.
      */
     suspend fun exportErrorRows(
         uri: Uri,
@@ -100,70 +81,51 @@ class CsvExporter @Inject constructor(
     ) = withContext(Dispatchers.IO) {
         openWriter(uri).use { writer ->
             writer.writeNext((originalHeaders + "error_reason").toTypedArray())
-            errors.forEach { err ->
-                writer.writeNext((err.rawRow + err.reason).toTypedArray())
+            errors.forEach { error ->
+                writer.writeNext((error.rawRow + error.reason).toTypedArray())
             }
         }
     }
 
     // -----------------------------------------------------------------------
-    // JSON Backup
-    // -----------------------------------------------------------------------
-
-    /** Exports all [products] as a JSON backup file. */
-    suspend fun exportToJson(uri: Uri, products: List<Product>) = withContext(Dispatchers.IO) {
-        val array = JSONArray()
-        products.forEach { p ->
-            array.put(JSONObject().apply {
-                put("id", p.id)
-                put("name", p.name)
-                put("brand", p.brand ?: JSONObject.NULL)
-                put("category", p.category ?: JSONObject.NULL)
-                put("selling_price", p.sellingPrice)
-                put("cost_price", p.costPrice ?: JSONObject.NULL)
-                put("unit", p.unit.name)
-                put("quantity_value", p.quantityValue ?: JSONObject.NULL)
-                put("in_stock", p.inStock)
-                put("notes", p.notes ?: JSONObject.NULL)
-                put("created_at", p.createdAt)
-                put("updated_at", p.updatedAt)
-            })
-        }
-        val outputStream = context.contentResolver.openOutputStream(uri)
-            ?: error("Cannot open URI for writing: $uri")
-        outputStream.writer(Charsets.UTF_8).use { it.write(array.toString(2)) }
-    }
-
-    // -----------------------------------------------------------------------
-    // JSON Restore
+    // Share sheet
     // -----------------------------------------------------------------------
 
     /**
-     * Parses a JSON backup and returns a list of [Product] objects.
-     * IDs are reset to 0 so Room auto-generates new primary keys on insert.
+     * Builds a chooser that hands the price list to WhatsApp, Gmail, Drive or
+     * anything else that takes a file.
+     *
+     * The read grant is set on the inner intent *and* mirrored into `clipData`:
+     * several popular targets read the attachment from the clip instead of
+     * `EXTRA_STREAM`, and without it they receive a URI they cannot open.
      */
-    suspend fun importFromJson(uri: Uri): List<Product> = withContext(Dispatchers.IO) {
-        val inputStream = context.contentResolver.openInputStream(uri)
-            ?: error("Cannot open URI: $uri")
-        val json = inputStream.bufferedReader(Charsets.UTF_8).readText()
-        val array = JSONArray(json)
-        val now = System.currentTimeMillis()
-        (0 until array.length()).map { i ->
-            val obj = array.getJSONObject(i)
-            Product(
-                id = 0L,
-                name = obj.getString("name"),
-                brand = obj.optString("brand").takeIf { it.isNotBlank() },
-                category = obj.optString("category").takeIf { it.isNotBlank() },
-                sellingPrice = obj.getDouble("selling_price"),
-                costPrice = if (obj.isNull("cost_price")) null else obj.getDouble("cost_price"),
-                unit = com.bhaavbook.app.data.model.ProductUnit.fromString(obj.optString("unit")),
-                quantityValue = if (obj.isNull("quantity_value")) null else obj.getDouble("quantity_value"),
-                inStock = obj.optBoolean("in_stock", true),
-                notes = obj.optString("notes").takeIf { it.isNotBlank() },
-                createdAt = now,
-                updatedAt = now
-            )
+    suspend fun createShareCsvIntent(products: List<Product>): Intent = withContext(Dispatchers.IO) {
+        val shareDir = File(context.cacheDir, SHARE_DIR).apply { mkdirs() }
+        val file = File(shareDir, SHARE_FILE_NAME)
+
+        CSVWriter(OutputStreamWriter(file.outputStream(), Charsets.UTF_8)).use { writer ->
+            writer.writeNext(CSV_HEADERS)
+            products.forEach { writer.writeNext(it.toCsvRow()) }
+        }
+
+        val contentUri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/csv"
+            putExtra(Intent.EXTRA_STREAM, contentUri)
+            putExtra(Intent.EXTRA_SUBJECT, "Chaitanya Stores — price list")
+            putExtra(Intent.EXTRA_TEXT, "Price list for ${products.size} items.")
+            clipData = ClipData.newUri(context.contentResolver, SHARE_FILE_NAME, contentUri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        Intent.createChooser(sendIntent, null).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
 
@@ -173,23 +135,23 @@ class CsvExporter @Inject constructor(
 
     private fun openWriter(uri: Uri): CSVWriter {
         val outputStream = context.contentResolver.openOutputStream(uri)
-            ?: error("Cannot open URI for writing: $uri")
+            ?: error("Cannot open that file for writing. Pick a different location.")
         return CSVWriter(OutputStreamWriter(outputStream, Charsets.UTF_8))
     }
 }
 
-// ---------------------------------------------------------------------------
-// Extension: Product → CSV row
-// ---------------------------------------------------------------------------
-
+/**
+ * Prices are written plainly — `45`, not `45.0` — because this file is meant to
+ * be opened in a spreadsheet and read by a person.
+ */
 private fun Product.toCsvRow(): Array<String> = arrayOf(
     name,
-    brand ?: "",
-    category ?: "",
-    sellingPrice.toString(),
-    costPrice?.toString() ?: "",
+    brand.orEmpty(),
+    category.orEmpty(),
+    sellingPrice.toEditableString(),
+    costPrice?.toEditableString().orEmpty(),
     unit.name,
-    quantityValue?.toString() ?: "",
+    quantityValue?.toEditableString().orEmpty(),
     if (inStock) "yes" else "no",
-    notes ?: ""
+    notes.orEmpty()
 )

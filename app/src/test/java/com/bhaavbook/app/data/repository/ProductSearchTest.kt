@@ -1,52 +1,218 @@
 package com.bhaavbook.app.data.repository
 
+import app.cash.turbine.test
 import com.bhaavbook.app.data.db.ProductDao
+import com.bhaavbook.app.data.model.Product
+import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 class ProductSearchTest {
 
     private lateinit var repository: ProductRepository
-    private val mockDao: ProductDao = mockk(relaxed = true)
+    private val dao: ProductDao = mockk(relaxed = true)
 
     @Before
     fun setUp() {
-        repository = ProductRepository(mockDao)
+        repository = ProductRepository(dao)
+    }
+
+    // -----------------------------------------------------------------------
+    // FTS query building
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `single word gets a trailing wildcard`() {
+        assertEquals("chandan*", repository.buildFtsQuery("chandan"))
     }
 
     @Test
-    fun `buildFtsQuery formats single word with trailing star`() {
-        val query = repository.buildFtsQuery("chandan")
-        assertEquals("chandan*", query)
+    fun `every word gets its own wildcard`() {
+        assertEquals("chandan* cycle*", repository.buildFtsQuery("chandan cycle"))
+    }
+
+    /** FTS4 ANDs the tokens, so the same two words match in either order. */
+    @Test
+    fun `word order only changes token order`() {
+        assertEquals("cycle* chandan*", repository.buildFtsQuery("cycle chandan"))
+        assertEquals("chandan* cycle*", repository.buildFtsQuery("chandan cycle"))
     }
 
     @Test
-    fun `buildFtsQuery formats multi-word query with trailing stars on each word`() {
-        val query = repository.buildFtsQuery("chandan cycle")
-        assertEquals("chandan* cycle*", query)
+    fun `illegal FTS characters are stripped`() {
+        assertEquals(
+            "cycle* chandan* 50g* incense*",
+            repository.buildFtsQuery("cycle (chandan) [50g] \"incense\"")
+        )
     }
 
     @Test
-    fun `buildFtsQuery handles reversed word order producing independent tokens`() {
-        val query1 = repository.buildFtsQuery("cycle chandan")
-        val query2 = repository.buildFtsQuery("chandan cycle")
-        
-        // FTS matches tokens using AND logic regardless of position
-        assertEquals("cycle* chandan*", query1)
-        assertEquals("chandan* cycle*", query2)
+    fun `extra whitespace collapses`() {
+        assertEquals("cycle* chandan*", repository.buildFtsQuery("  cycle   chandan  "))
+    }
+
+    /**
+     * A hyphen is FTS4's NOT operator and a colon is its column qualifier, so
+     * leaving either in place turns a shopkeeper's search into a syntax error.
+     */
+    @Test
+    fun `FTS operators the user might type are stripped`() {
+        assertEquals("kapur* tablet*", repository.buildFtsQuery("kapur-tablet"))
+        assertEquals("cycle* agarbatti*", repository.buildFtsQuery("cycle: agarbatti"))
+        assertEquals("chandan*", repository.buildFtsQuery("chandan*"))
+    }
+
+    /**
+     * `MATCH ''` is an FTS4 syntax error, so a query with nothing searchable in
+     * it has to come back empty and be routed to the LIKE path instead.
+     */
+    @Test
+    fun `a query of pure punctuation yields no FTS query`() {
+        assertEquals("", repository.buildFtsQuery("---"))
+        assertEquals("", repository.buildFtsQuery("()"))
+        assertEquals("", repository.buildFtsQuery("   "))
+    }
+
+    // -----------------------------------------------------------------------
+    // Search routing
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `a blank query reads the sorted table and never touches FTS`() = runTest {
+        every { dao.getAllByName() } returns flowOf(listOf(product(1, "Kapur")))
+
+        repository.getProducts("", SortOrder.NAME_ASC, ProductFilter.None).test {
+            assertEquals(1, awaitItem().size)
+            awaitComplete()
+        }
     }
 
     @Test
-    fun `buildFtsQuery strips illegal FTS special characters`() {
-        val query = repository.buildFtsQuery("cycle (chandan) [50g] \"incense\"")
-        assertEquals("cycle* chandan* 50g* incense*", query)
+    fun `a one-character query uses LIKE, which FTS prefixes handle poorly`() = runTest {
+        every { dao.searchLike("k") } returns flowOf(listOf(product(1, "Kapur")))
+
+        repository.getProducts("k", SortOrder.NAME_ASC, ProductFilter.None).test {
+            assertEquals(1, awaitItem().size)
+            awaitComplete()
+        }
     }
 
     @Test
-    fun `buildFtsQuery handles extra whitespace cleanly`() {
-        val query = repository.buildFtsQuery("  cycle   chandan  ")
-        assertEquals("cycle* chandan*", query)
+    fun `a punctuation-only query falls back to LIKE instead of crashing FTS`() = runTest {
+        every { dao.searchLike("--") } returns flowOf(emptyList())
+
+        repository.getProducts("--", SortOrder.NAME_ASC, ProductFilter.None).test {
+            assertTrue(awaitItem().isEmpty())
+            awaitComplete()
+        }
     }
+
+    // -----------------------------------------------------------------------
+    // Relevance ordering
+    // -----------------------------------------------------------------------
+
+    /**
+     * FTS returns hits alphabetically. Typing "chandan" should surface the item
+     * actually called Chandan before one that merely mentions it further along.
+     */
+    @Test
+    fun `a name that starts with the query sorts above one that contains it`() = runTest {
+        val contains = product(1, "Agarbatti Chandan Premium")
+        val startsWith = product(2, "Chandan Powder")
+        every { dao.searchFts(any()) } returns flowOf(listOf(contains, startsWith))
+
+        repository.getProducts("chandan", SortOrder.NAME_ASC, ProductFilter.None).test {
+            assertEquals(listOf("Chandan Powder", "Agarbatti Chandan Premium"), awaitItem().map { it.name })
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `an explicitly chosen sort order wins over relevance`() = runTest {
+        val cheap = product(1, "Zzz Chandan", price = 10.0)
+        val dear = product(2, "Chandan Powder", price = 900.0)
+        every { dao.searchFts(any()) } returns flowOf(listOf(dear, cheap))
+
+        repository.getProducts("chandan", SortOrder.PRICE_DESC, ProductFilter.None).test {
+            assertEquals(listOf("Chandan Powder", "Zzz Chandan"), awaitItem().map { it.name })
+            awaitComplete()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Filters
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `a brand filter matches regardless of how the brand was capitalised`() = runTest {
+        every { dao.getAllByName() } returns flowOf(
+            listOf(
+                product(1, "Agarbatti", brand = "cycle"),
+                product(2, "Kapur", brand = "Mangaldeep")
+            )
+        )
+
+        repository.getProducts("", SortOrder.NAME_ASC, ProductFilter.ByBrand("Cycle")).test {
+            assertEquals(listOf("Agarbatti"), awaitItem().map { it.name })
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `brand chips collapse spellings that differ only in case`() = runTest {
+        every { dao.getAllBrands() } returns flowOf(listOf("Cycle", "cycle", "CYCLE", "Moksh"))
+
+        repository.getAllBrands().test {
+            assertEquals(listOf("Cycle", "Moksh"), awaitItem())
+            awaitComplete()
+        }
+    }
+
+    @Test
+    fun `an out-of-stock item is hidden by the in-stock filter`() = runTest {
+        every { dao.getAllByName() } returns flowOf(
+            listOf(
+                product(1, "Available", inStock = true),
+                product(2, "Finished", inStock = false)
+            )
+        )
+
+        repository.getProducts("", SortOrder.NAME_ASC, ProductFilter.InStockOnly).test {
+            assertEquals(listOf("Available"), awaitItem().map { it.name })
+            awaitComplete()
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Duplicate detection
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `an item is not treated as a duplicate of itself when edited`() = runTest {
+        val existing = product(7, "Kapur", brand = "Moksh")
+        coEvery { dao.getByBrandAndName("Kapur", "Moksh") } returns existing
+
+        assertEquals(null, repository.checkDuplicate("Kapur", "Moksh", excludeId = 7))
+        assertEquals(existing, repository.checkDuplicate("Kapur", "Moksh", excludeId = 0))
+    }
+
+    private fun product(
+        id: Long,
+        name: String,
+        brand: String? = null,
+        price: Double = 45.0,
+        inStock: Boolean = true
+    ) = Product(
+        id = id,
+        name = name,
+        brand = brand,
+        sellingPrice = price,
+        inStock = inStock
+    )
 }

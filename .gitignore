@@ -1,0 +1,20 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Signing material — never commit these. CI reconstructs release.keystore from
+# a base64 secret at build time and the file is deleted afterwards.
+*.jks
+*.keystore
+keystore.properties

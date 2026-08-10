@@ -1,10 +1,135 @@
 <resources>
     <string name="app_name">Chaitanya Stores</string>
     <string name="tagline">Every price, in one second.</string>
-    <string name="import_csv">Import CSV</string>
-    <string name="sort_and_filter">Sort &amp; Filter</string>
+
+    <!-- Product list -->
+    <string name="logo_content_description">Chaitanya Stores logo</string>
+    <string name="items_in_price_list">%1$d items in price list</string>
+    <string name="one_item_in_price_list">1 item in price list</string>
+    <string name="price_list_empty">Price list is empty</string>
+    <string name="search_hint">Search item, brand or category…</string>
+    <string name="search">Search</string>
+    <string name="clear_search">Clear search</string>
+    <string name="more_options">More options</string>
+    <string name="sort_and_filter">Sort &amp; filter</string>
+    <string name="filter_in_stock">In stock</string>
+    <string name="clear_filter">Clear filter</string>
+    <string name="results_count">%1$d of %2$d</string>
+    <string name="showing_all">Showing all %1$d</string>
+    <string name="out_of_stock">Out of stock</string>
+    <string name="price_of_item">%1$s, price %2$s</string>
+
+    <!-- Empty states -->
+    <string name="no_matches_title">No matching item</string>
+    <string name="no_matches_body">Check the spelling, or try just the brand name.</string>
+    <string name="no_filter_matches_title">Nothing in this filter</string>
+    <string name="no_filter_matches_body">No items match the filter you picked.</string>
+    <string name="first_run_title">Start your price list</string>
+    <string name="first_run_body">Add items one by one, or import the whole list from a CSV file.</string>
+
+    <!-- Actions -->
+    <string name="add_product">Add item</string>
+    <string name="edit_product">Edit item</string>
+    <string name="delete_product">Delete item</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
+    <string name="undo">UNDO</string>
+    <string name="back">Back</string>
     <string name="settings">Settings</string>
-    <string name="add_product">Add Product</string>
-    <string name="edit_product">Edit Product</string>
-    <string name="delete_product">Delete Product</string>
+    <string name="share_price_list">Share price list</string>
+    <string name="export_to_storage">Save CSV to phone</string>
+    <string name="import_csv">Import from CSV</string>
+
+    <!-- Sort sheet -->
+    <string name="sort_title">Sort items</string>
+    <string name="sort_name_asc">Name A–Z</string>
+    <string name="sort_brand_asc">Brand A–Z</string>
+    <string name="sort_price_asc">Price: low to high</string>
+    <string name="sort_price_desc">Price: high to low</string>
+    <string name="sort_recent">Recently updated</string>
+    <string name="filter_title">Filter</string>
+    <string name="filter_by_brand">Brand</string>
+    <string name="filter_by_category">Category</string>
+
+    <!-- Price sheet -->
+    <string name="per_unit">per %1$s</string>
+    <string name="cost_price_label">Cost %1$s</string>
+    <string name="note_label">Note: %1$s</string>
+    <string name="close">Close</string>
+
+    <!-- Product edit -->
+    <string name="section_required">Required</string>
+    <string name="section_details">Details</string>
+    <string name="section_optional">Optional</string>
+    <string name="field_name">Item name</string>
+    <string name="field_selling_price">Selling price</string>
+    <string name="field_brand">Brand</string>
+    <string name="field_category">Category</string>
+    <string name="field_unit">Unit</string>
+    <string name="field_pack_size">Pack size</string>
+    <string name="field_cost_price">Cost price (never shown to customers)</string>
+    <string name="field_notes">Notes</string>
+    <string name="field_in_stock">In stock</string>
+    <string name="error_name_required">Enter an item name</string>
+    <string name="error_price_required">Enter a valid price</string>
+    <string name="error_price_negative">Price cannot be negative</string>
+    <string name="error_price_too_large">Price is too large</string>
+    <string name="duplicate_warning">“%1$s” is already in your list. Tap Save again to add it anyway.</string>
+    <string name="save_product">Save item</string>
+    <string name="saving">Saving…</string>
+    <string name="product_saved">Item saved</string>
+    <string name="save_failed">Could not save: %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_display">Display</string>
+    <string name="settings_currency">Currency symbol</string>
+    <string name="settings_default_unit">Default unit for new items</string>
+    <string name="settings_autofocus">Open keyboard on launch</string>
+    <string name="settings_autofocus_sub">Start typing the moment the app opens</string>
+    <string name="settings_show_cost">Show cost price</string>
+    <string name="settings_show_cost_sub">Adds your purchase cost to the price sheet. Leave off when the phone faces a customer.</string>
+    <string name="settings_price_size">Price size</string>
+    <string name="settings_price_size_normal">Normal</string>
+    <string name="settings_price_size_large">Large</string>
+    <string name="settings_price_size_xl">Extra large</string>
+    <string name="settings_theme">Appearance</string>
+    <string name="settings_theme_system">Follow phone setting</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_data">Price list data</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_offline_note">Works fully offline. Your prices never leave this phone unless you share them yourself.</string>
+
+    <!-- CSV import -->
+    <string name="import_title">Import from CSV</string>
+    <string name="import_pick_title">Import your price list</string>
+    <string name="import_pick_body">Comma or semicolon separated, UTF-8. Files exported from Excel or Google Sheets work as they are.</string>
+    <string name="import_pick_file">Choose CSV file</string>
+    <string name="import_sample">Download a sample file</string>
+    <string name="import_preview_title">First %1$d of %2$d rows</string>
+    <string name="import_delimiter">Separator detected: %1$s</string>
+    <string name="import_map_columns">Map columns →</string>
+    <string name="import_map_title">Match the columns</string>
+    <string name="import_map_body">Tell the app what each column in your file contains.</string>
+    <string name="import_duplicates_title">If an item already exists</string>
+    <string name="import_dup_skip">Keep the existing one</string>
+    <string name="import_dup_update">Update it with the new price</string>
+    <string name="import_dup_add">Add it again as a new item</string>
+    <string name="import_start">Import %1$d rows</string>
+    <string name="import_running">Importing…</string>
+    <string name="import_progress">%1$d of %2$d rows</string>
+    <string name="import_done">Import finished</string>
+    <string name="import_total_rows">Rows in file</string>
+    <string name="import_added">Items added</string>
+    <string name="import_updated">Items updated</string>
+    <string name="import_skipped">Rows skipped</string>
+    <string name="import_errors">Rows with problems</string>
+    <string name="import_error_details">What went wrong</string>
+    <string name="import_error_row">Row %1$d: %2$s</string>
+    <string name="import_export_errors">Save the problem rows as CSV</string>
+    <string name="import_read_failed">Could not read that file</string>
+    <string name="import_try_again">Try again</string>
 </resources>

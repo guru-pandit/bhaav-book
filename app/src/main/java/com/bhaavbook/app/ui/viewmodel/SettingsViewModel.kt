@@ -11,8 +11,12 @@ import com.bhaavbook.app.data.settings.PriceFontSize
 import com.bhaavbook.app.data.settings.SettingsRepository
 import com.bhaavbook.app.data.settings.ThemeOption
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,42 +34,59 @@ class SettingsViewModel @Inject constructor(
         AppSettings()
     )
 
-    fun updateCurrencySymbol(symbol: String) = viewModelScope.launch {
-        repo.updateCurrencySymbol(symbol)
+    private val _messages = Channel<UiMessage>(
+        capacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val messages: Flow<UiMessage> = _messages.receiveAsFlow()
+
+    /**
+     * Blank input keeps the stored symbol rather than saving an empty string —
+     * a price list with no currency mark in front of the numbers is worse than
+     * whatever the user was mid-way through typing.
+     */
+    fun updateCurrencySymbol(symbol: String) {
+        val cleaned = symbol.trim().take(3)
+        if (cleaned.isEmpty()) return
+        viewModelScope.launch { repo.updateCurrencySymbol(cleaned) }
     }
 
-    fun updateDefaultUnit(unit: String) = viewModelScope.launch {
-        repo.updateDefaultUnit(unit)
+    fun updateDefaultUnit(unit: String) = launchUpdate { repo.updateDefaultUnit(unit) }
+
+    fun updateTheme(theme: ThemeOption) = launchUpdate { repo.updateTheme(theme) }
+
+    fun updatePriceFontSize(size: PriceFontSize) = launchUpdate { repo.updatePriceFontSize(size) }
+
+    fun updateAutoFocusSearch(enabled: Boolean) = launchUpdate { repo.updateAutoFocusSearch(enabled) }
+
+    fun updateShowCostPrice(show: Boolean) = launchUpdate { repo.updateShowCostPrice(show) }
+
+    private fun launchUpdate(block: suspend () -> Unit) {
+        viewModelScope.launch { block() }
     }
 
-    fun updateTheme(theme: ThemeOption) = viewModelScope.launch {
-        repo.updateTheme(theme)
-    }
-
-    fun updatePriceFontSize(size: PriceFontSize) = viewModelScope.launch {
-        repo.updatePriceFontSize(size)
-    }
-
-    fun updateAutoFocusSearch(enabled: Boolean) = viewModelScope.launch {
-        repo.updateAutoFocusSearch(enabled)
-    }
-
-    fun updateShowCostPrice(show: Boolean) = viewModelScope.launch {
-        repo.updateShowCostPrice(show)
-    }
-
-    fun shareCsv(context: Context) = viewModelScope.launch {
-        try {
+    fun shareCsv(context: Context) {
+        viewModelScope.launch {
             val snapshot = productRepository.getAllSnapshot()
-            val shareIntent = csvExporter.createShareCsvIntent(snapshot)
-            context.startActivity(shareIntent)
-        } catch (_: Exception) {}
+            if (snapshot.isEmpty()) {
+                _messages.trySend(UiMessage("Nothing to share yet"))
+                return@launch
+            }
+            runCatching { context.startActivity(csvExporter.createShareCsvIntent(snapshot)) }
+                .onFailure { _messages.trySend(UiMessage("Could not share: ${it.readableMessage()}")) }
+        }
     }
 
-    fun exportToCsvUri(uri: Uri) = viewModelScope.launch {
-        try {
+    fun exportToCsvUri(uri: Uri) {
+        viewModelScope.launch {
             val snapshot = productRepository.getAllSnapshot()
-            csvExporter.exportToCsv(uri, snapshot)
-        } catch (_: Exception) {}
+            if (snapshot.isEmpty()) {
+                _messages.trySend(UiMessage("Nothing to export yet"))
+                return@launch
+            }
+            runCatching { csvExporter.exportToCsv(uri, snapshot) }
+                .onSuccess { _messages.trySend(UiMessage("Exported ${snapshot.size} items")) }
+                .onFailure { _messages.trySend(UiMessage("Export failed: ${it.readableMessage()}")) }
+        }
     }
 }

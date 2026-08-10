@@ -6,6 +6,18 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+/**
+ * Release signing is driven entirely by the environment, so CI can sign from
+ * GitHub secrets and a developer's clone needs no setup at all.
+ *
+ * With no keystore present the release build still compiles and shrinks — it
+ * just comes out unsigned, which keeps `assembleRelease` useful as a check that
+ * R8 has not stripped something the app needs.
+ */
+val releaseKeystore = rootProject.file("release.keystore")
+val keystorePassword: String? = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+val hasReleaseSigning = releaseKeystore.exists() && !keystorePassword.isNullOrBlank()
+
 android {
     namespace = "com.bhaavbook.app"
     compileSdk = 35
@@ -18,13 +30,17 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        vectorDrawables { useSupportLibrary = true }
+    }
 
-        ksp {
-            arg("room.schemaLocation", "$projectDir/schemas")
-            arg("room.incremental", "true")
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = keystorePassword
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "bhaavbook"
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: keystorePassword
+            }
         }
     }
 
@@ -36,10 +52,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
         }
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
     }
 
@@ -57,14 +75,51 @@ android {
         buildConfig = true
     }
 
+    lint {
+        // A lint regression should fail the build, not scroll past in a log.
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = false
+        // Our own code only: a dependency's lint findings are not ours to fix,
+        // and letting them fail the build makes upgrades unpredictable.
+        checkDependencies = false
+        // Sub-3-character symbols like "₹" trip this, and the app is not
+        // translated yet — the strings are externalised, which is the point.
+        disable += listOf("MissingTranslation", "TypographyEllipsis")
+    }
+
+    testOptions {
+        unitTests {
+            // Lets plain JUnit tests touch android.* stubs without Robolectric.
+            isReturnDefaultValues = true
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/LICENSE*"
             excludes += "META-INF/NOTICE*"
             excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/INDEX.LIST"
         }
     }
+
+    // Keeps the APK byte-for-byte comparable between builds of the same commit.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+}
+
+/**
+ * Room writes its schema JSON here on every build. Committing those files is
+ * what makes a future migration reviewable: the diff shows exactly what changed
+ * in the shopkeeper's database.
+ */
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
 }
 
 dependencies {
@@ -75,15 +130,13 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
-    // Compose BOM
+    // Compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
-
-    // Navigation
     implementation(libs.androidx.navigation.compose)
 
     // Room
@@ -96,27 +149,19 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
 
-    // Coroutines
     implementation(libs.kotlinx.coroutines.android)
-
-    // CSV
     implementation(libs.opencsv)
-
-    // Splash screen
     implementation(libs.androidx.core.splashscreen)
-
-    // DataStore (settings)
     implementation(libs.androidx.datastore.preferences)
 
-    // Debug
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    // Tests
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)
+
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

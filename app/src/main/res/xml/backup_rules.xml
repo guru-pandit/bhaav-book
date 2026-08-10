@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 11 and below (android:fullBackupContent).
+
+    The price list is the only copy the shop has, so it goes into the backup.
+    Two things to know about the paths:
+
+      * the whole database domain is included, not just bhaavbook.db — Room runs
+        in WAL mode, and the -wal and -shm files have to travel with it or the
+        restore can come back missing the most recent writes;
+      * Preferences DataStore does NOT live in the sharedpref domain, despite the
+        name. It is a file under files/datastore/, which is why the earlier rule
+        naming a sharedpref path silently backed up nothing.
+-->
 <full-backup-content>
-    <include domain="database" path="bhaavbook.db" />
-    <include domain="sharedpref" path="bhaavbook_settings.preferences_pb" />
+    <include domain="database" path="." />
+    <include domain="file" path="datastore/" />
 </full-backup-content>
