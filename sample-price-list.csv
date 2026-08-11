@@ -1,0 +1,34 @@
+name,brand,category,selling_price,cost_price,unit,quantity_value,in_stock,notes
+Agarbatti Chandan,Cycle,Agarbatti & Dhoop,45,38,GRAM,100,yes,Fast moving
+Agarbatti Gulab,Cycle,Agarbatti & Dhoop,45,38,GRAM,100,yes,
+Agarbatti Mogra,Cycle,Agarbatti & Dhoop,50,42,GRAM,100,yes,
+Dhoop Sticks Sandal,Mangaldeep,Agarbatti & Dhoop,₹60,50,PACKET,1,yes,
+Dhoop Cone Loban,Mangaldeep,Agarbatti & Dhoop,Rs. 35,28,BOX,20,yes,
+Kapur Tablet Small,Moksh,Camphor & Wicks,60,50,GRAM,50,yes,
+Kapur Tablet Large,Moksh,Camphor & Wicks,110,92,GRAM,100,yes,
+Cotton Wick Long,,Camphor & Wicks,20,14,PACKET,1,no,Waiting on supplier
+Cotton Wick Round,,Camphor & Wicks,15,10,PACKET,1,yes,
+Kumkum,Moksh,Kumkum & Haldi,25,19,GRAM,50,yes,
+Haldi Powder,Moksh,Kumkum & Haldi,30,22,GRAM,100,yes,
+Ashtagandha,,Kumkum & Haldi,40,31,GRAM,50,yes,
+Diya Clay Small,,Diya & Lamps,5,3,PIECE,1,yes,Sold by the dozen at Diwali
+Diya Clay Large,,Diya & Lamps,12,8,PIECE,1,yes,
+Brass Diya,,Diya & Lamps,"Rs. 1,250",980,PIECE,1,yes,Display piece
+Til Oil,Patanjali,Oil & Ghee,180,158,ML,500,yes,
+Til Oil Small,Patanjali,Oil & Ghee,95,80,ML,200,yes,
+Desi Ghee,Patanjali,Oil & Ghee,"₹1,150",985,ML,1000,yes,"Check expiry, slow mover"
+Kalava Thread,,Puja Thread & Kalava,10,6,PIECE,1,yes,
+Janeu,,Puja Thread & Kalava,25,17,PIECE,1,yes,
+Havan Samagri,Moksh,Havan Samagri,90,72,GRAM,500,yes,
+Havan Kund Small,,Havan Samagri,450,360,PIECE,1,no,Reorder before Navratri
+Ganesh Idol Brass,,Idols & Frames,"2,499",1950,PIECE,1,yes,Festival stock
+Photo Frame Lakshmi,,Idols & Frames,320,245,PIECE,1,yes,
+Puja Thali Steel,,Puja Thali & Utensils,275,210,PIECE,1,yes,
+Panchpatra Set,,Puja Thali & Utensils,540,430,PIECE,1,yes,
+Dry Coconut,,Coconut & Dry Fruits,45,34,PIECE,1,yes,
+Kaju 250g,,Coconut & Dry Fruits,285,240,GRAM,250,yes,
+Marigold Garland,,Flowers & Garlands,60,40,PIECE,1,yes,Daily fresh stock
+Rose Garland,,Flowers & Garlands,120,85,PIECE,1,no,Order a day ahead
+Panchang 2026,,Books & Calendars,80,60,PIECE,1,yes,
+Hanuman Chalisa Book,,Books & Calendars,25,16,DOZEN,12,yes,Sold in dozens
+Matchbox Bundle,,Other,12,8,BUNDLE,10,yes,

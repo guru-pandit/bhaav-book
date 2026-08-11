@@ -118,12 +118,51 @@ jobs:
           gradle-version: ${{ env.GRADLE_VERSION }}
           cache-read-only: true
 
+      # Which secrets the run can actually see. Booleans only — never the
+      # values. Without this, a typo'd secret name is indistinguishable from
+      # having set nothing at all, and the only symptom is an APK that silently
+      # will not install.
+      - name: Report signing inputs
+        env:
+          P: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          A: ${{ secrets.RELEASE_KEY_ALIAS }}
+          K: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -u
+          report() { [ -n "$2" ] && echo "  $1: present" || echo "  $1: MISSING"; }
+          echo "Signing secrets visible to this run:"
+          report RELEASE_KEYSTORE_BASE64   "$KEYSTORE_BASE64"
+          report RELEASE_KEYSTORE_PASSWORD "$P"
+          report RELEASE_KEY_ALIAS         "$A"
+          report RELEASE_KEY_PASSWORD      "$K"
+          [ -n "$KEYSTORE_BASE64" ] && echo "  base64 length: ${#KEYSTORE_BASE64} chars"
+          exit 0
+
       # Optional on ordinary pushes: with the secrets unset the release build
       # still runs and proves R8 has not stripped anything the app needs. The
       # APK it produces is unsigned and is labelled as such below.
       - name: Restore keystore
         if: env.KEYSTORE_BASE64 != ''
         run: printf '%s' "$KEYSTORE_BASE64" | base64 -d > release.keystore
+
+      # Catches a base64 secret that got line-wrapped on paste, and a password
+      # that does not match the key. Both otherwise surface much later as an
+      # opaque Gradle failure or, worse, a quietly unsigned APK.
+      - name: Check the keystore decoded and opens
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+        run: |
+          echo "Decoded keystore: $(wc -c < release.keystore) bytes"
+          if ! keytool -list -keystore release.keystore \
+                 -storepass "$RELEASE_KEYSTORE_PASSWORD" > keystore-contents.txt 2>&1; then
+            echo "::error::Could not open release.keystore. Either RELEASE_KEYSTORE_BASE64 is corrupt (a line break on paste is the usual cause) or RELEASE_KEYSTORE_PASSWORD is wrong."
+            sed -e 's/^/  /' keystore-contents.txt
+            exit 1
+          fi
+          echo "Keystore opened. Aliases it contains:"
+          grep -i 'PrivateKeyEntry\|trustedCertEntry' keystore-contents.txt | sed -e 's/^/  /'
+          rm -f keystore-contents.txt
 
       - name: Assemble release
         env:
@@ -135,6 +174,28 @@ jobs:
       - name: Shred keystore
         if: always()
         run: rm -f release.keystore
+
+      # The decisive check. Everything up to here can look healthy and still
+      # yield an APK Android refuses, so confirm the signature on the actual
+      # artifact rather than inferring it from the build succeeding.
+      - name: Verify the APK is really signed
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          set -e
+          apk=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$apk" ]; then
+            echo "::error::Expected a signed $apk but Gradle produced:"
+            ls -la app/build/outputs/apk/release/
+            echo "::error::The signing config did not activate. release.keystore was present, so check RELEASE_KEYSTORE_PASSWORD is non-empty."
+            exit 1
+          fi
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -z "$apksigner" ]; then
+            echo "::warning::apksigner not found on the runner; skipping signature verification."
+            exit 0
+          fi
+          "$apksigner" verify --verbose --print-certs "$apk"
+          echo "APK is signed and installable."
 
       # AGP names the output app-release.apk when signed and
       # app-release-unsigned.apk when not. Naming the artifact after which one

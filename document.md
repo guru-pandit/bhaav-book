@@ -211,23 +211,31 @@ Local commands (for reference — normally run by CI, not on a dev machine):
 
 **Android will not install an unsigned APK** — it fails with "invalid package" / "There was a problem parsing the package". Until the four secrets below exist, the release job produces `app-release-unsigned.apk` and CI labels the artifact `UNSIGNED-cannot-be-installed`. Use the debug APK in the meantime; it is signed with the standard Android debug key and installs fine.
 
-Generating the key needs `keytool`, which ships with any JDK. With no JDK on the machine, Docker gives you one without installing anything permanently — run this **once**, from the repo root:
+Generating the key needs `keytool`, which ships with any JDK. With no JDK on the machine, Docker gives you one without installing anything permanently. Start Docker Desktop, then run this **once** from the repo root.
+
+**PowerShell** (preferred on Windows — Git Bash mangles the `-v` path):
+
+```powershell
+docker run --rm -v "${PWD}:/work" -w /work eclipse-temurin:17-jdk `
+  keytool -genkeypair -v -keystore release.keystore -alias bhaavbook `
+    -keyalg RSA -keysize 2048 -validity 10000 `
+    -storepass 'CHOOSE_A_STRONG_PASSWORD' -keypass 'CHOOSE_A_STRONG_PASSWORD' `
+    -dname "CN=Chaitanya Stores, O=Chaitanya Stores, L=Pune, C=IN"
+
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.keystore")) |
+  Set-Content -NoNewline release.keystore.b64
+```
+
+**macOS / Linux:**
 
 ```bash
 docker run --rm -v "$PWD":/work -w /work eclipse-temurin:17-jdk \
-  keytool -genkeypair -v \
-    -keystore release.keystore \
-    -alias bhaavbook \
+  keytool -genkeypair -v -keystore release.keystore -alias bhaavbook \
     -keyalg RSA -keysize 2048 -validity 10000 \
-    -storepass 'CHOOSE_A_STRONG_PASSWORD' \
-    -keypass  'CHOOSE_A_STRONG_PASSWORD' \
+    -storepass 'CHOOSE_A_STRONG_PASSWORD' -keypass 'CHOOSE_A_STRONG_PASSWORD' \
     -dname "CN=Chaitanya Stores, O=Chaitanya Stores, L=Pune, C=IN"
-```
 
-Then base64-encode it for GitHub:
-
-```bash
-base64 -w0 release.keystore > release.keystore.b64   # Git Bash / Linux
+base64 -w0 release.keystore > release.keystore.b64
 ```
 
 Add these four repository secrets (**Settings → Secrets and variables → Actions**):
@@ -239,11 +247,13 @@ Add these four repository secrets (**Settings → Secrets and variables → Acti
 | `RELEASE_KEY_ALIAS` | `bhaavbook` |
 | `RELEASE_KEY_PASSWORD` | the password chosen above |
 
-Then delete the local copies — `release.keystore` and `release.keystore.b64` are both covered by `.gitignore`, but they should not sit on disk either:
+Then back the keystore up somewhere private and delete the working copies. Both filenames are covered by `.gitignore`, but they should not linger in the repo folder either:
 
 ```bash
 rm release.keystore release.keystore.b64
 ```
+
+Re-run the workflow after adding the secrets. The artifact will be named `chaitanya-stores-release` (not `UNSIGNED-cannot-be-installed`) and the APK inside will be `app-release.apk` rather than `app-release-unsigned.apk`. Remember the download is a **ZIP** — unzip it before moving the APK to the phone.
 
 > **Keep a backup of the keystore somewhere safe and private before deleting it.** Android will only let an installed app be updated by an APK signed with the *same* key. Lose this key and the only way to ship an update is to uninstall first — which deletes the shop's entire price list. (Recoverable only if they exported a CSV beforehand.)
 >
