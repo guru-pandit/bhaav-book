@@ -71,7 +71,7 @@ import com.bhaavbook.app.ui.viewmodel.ProductEditUiState
 import com.bhaavbook.app.ui.viewmodel.VariantFormState
 import com.bhaavbook.app.ui.viewmodel.readableMessage
 
-private val QUICK_FILL_LABELS = listOf("100 g", "250 g", "500 g", "1 kg", "Single", "Packet", "Box")
+private val QUICK_FILL_LABELS = listOf("1 Dozen", "1/2 Dozen", "100 g", "250 g", "500 g", "1 kg", "500 ml", "1 L", "Single", "Packet", "Box")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

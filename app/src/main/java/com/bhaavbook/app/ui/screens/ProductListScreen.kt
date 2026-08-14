@@ -103,6 +103,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bhaavbook.app.R
 import com.bhaavbook.app.data.model.Product
+import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.repository.ProductFilter
 import com.bhaavbook.app.data.repository.SortOrder
 import com.bhaavbook.app.data.settings.PriceFontSize
@@ -132,7 +133,7 @@ fun ProductListScreen(
 
     // The tapped product is held by value, not by id: a debounced search result
     // arriving while the sheet is open must not yank it out from under the user.
-    var openProduct by remember { mutableStateOf<Product?>(null) }
+    var openProduct by remember { mutableStateOf<ProductWithVariants?>(null) }
     var showSortSheet by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -237,14 +238,14 @@ fun ProductListScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.products, key = { it.id }) { product ->
+                    items(uiState.products, key = { it.product.id }) { item ->
                         ProductRow(
-                            product = product,
+                            pwv = item,
                             currencySymbol = uiState.settings.currencySymbol,
                             priceFontSize = uiState.settings.priceFontSize,
                             onClick = {
                                 focusManager.clearFocus()
-                                openProduct = product
+                                openProduct = item
                             }
                         )
                     }
@@ -264,19 +265,20 @@ fun ProductListScreen(
         )
     }
 
-    openProduct?.let { product ->
+    openProduct?.let { pwv ->
         PriceSheet(
-            product = product,
+            pwv = pwv,
             currencySymbol = uiState.settings.currencySymbol,
             priceFontSize = uiState.settings.priceFontSize,
             showCostPrice = uiState.settings.showCostPrice,
+            showWholesalePrice = uiState.settings.showWholesalePrice,
             onEdit = {
                 openProduct = null
-                onEditProduct(product.id)
+                onEditProduct(pwv.product.id)
             },
             onDelete = {
                 openProduct = null
-                viewModel.requestDelete(product)
+                viewModel.requestDelete(pwv)
             },
             onDismiss = { openProduct = null }
         )
@@ -601,13 +603,13 @@ private fun ResultSummary(state: ProductListUiState, onClearFilter: () -> Unit) 
 
 @Composable
 private fun ProductRow(
-    product: Product,
+    pwv: ProductWithVariants,
     currencySymbol: String,
     priceFontSize: PriceFontSize,
     onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val price = product.sellingPrice.toPriceString(currencySymbol)
+    val priceLabel = pwv.priceLabel(currencySymbol)
 
     Card(
         shape = MaterialTheme.shapes.medium,
@@ -617,7 +619,7 @@ private fun ProductRow(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .semantics {
-                contentDescription = "${product.displayTitle}, $price"
+                contentDescription = "${pwv.product.displayTitle}, $priceLabel"
             }
     ) {
         Row(
@@ -629,40 +631,38 @@ private fun ProductRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = product.name,
+                    text = pwv.product.name,
                     style = MaterialTheme.typography.titleMedium,
                     color = colors.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(3.dp))
-                MetaLine(product = product)
+                MetaLine(pwv = pwv)
             }
 
             Spacer(Modifier.width(12.dp))
 
             PricePill(
-                price = price,
+                price = priceLabel,
                 fontSize = priceFontSize.rowSize,
-                muted = !product.inStock
+                muted = !pwv.isAnyInStock
             )
         }
     }
 }
 
 /**
- * Brand · pack · category on one muted line. The brand used to be a filled gold
- * badge on every card; at twenty rows that turns the list into a wall of gold
- * blocks, so it is plain coloured text now and the eye goes to the name first.
+ * Brand · variants/pack · category on one muted line.
  */
 @Composable
-private fun MetaLine(product: Product) {
+private fun MetaLine(pwv: ProductWithVariants) {
     val colors = MaterialTheme.colorScheme
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (!product.brand.isNullOrBlank()) {
+        if (!pwv.product.brand.isNullOrBlank()) {
             Text(
-                text = product.brand,
+                text = pwv.product.brand,
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.tertiary,
                 maxLines = 1,
@@ -670,10 +670,18 @@ private fun MetaLine(product: Product) {
             )
             Dot()
         }
+        val variantText = when {
+            pwv.variants.size > 1 -> "${pwv.variants.size} variants"
+            pwv.variants.size == 1 -> pwv.variants.first().variantLabel
+            else -> ""
+        }
         Text(
             text = buildString {
-                append(product.packLabel)
-                product.category?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+                append(variantText)
+                pwv.product.category?.takeIf { it.isNotBlank() }?.let {
+                    if (isNotEmpty()) append(" · ")
+                    append(it)
+                }
             },
             style = MaterialTheme.typography.bodySmall,
             color = colors.onSurfaceVariant,
@@ -681,7 +689,7 @@ private fun MetaLine(product: Product) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
         )
-        if (!product.inStock) {
+        if (!pwv.isAnyInStock) {
             Dot()
             Text(
                 text = stringResource(R.string.out_of_stock),

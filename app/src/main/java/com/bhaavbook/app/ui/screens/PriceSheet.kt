@@ -11,11 +11,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -25,6 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,7 +40,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bhaavbook.app.R
-import com.bhaavbook.app.data.model.Product
+import com.bhaavbook.app.data.model.ProductVariant
+import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.settings.PriceFontSize
 import com.bhaavbook.app.format.toPriceString
 import com.bhaavbook.app.ui.theme.TabularFigures
@@ -42,24 +50,37 @@ import com.bhaavbook.app.ui.theme.TabularFigures
  * The whole point of the app: hold the phone up and let the customer read the
  * price from arm's length.
  *
- * Layout priority, largest to smallest: price → item name → pack size →
- * everything else. Edit and Delete are deliberately quiet text-weight buttons —
- * they are the shopkeeper's tools, and a big red Delete next to a customer's
- * face is an accident waiting to happen.
+ * Single variant  → price displayed directly (no extra tap, no regression).
+ * Multiple variants → horizontal chip row; tapping a chip sets the hero price.
+ *
+ * Layout priority, largest to smallest: price → item name → variant chips →
+ * pack label → wholesale → notes → actions.
+ * Edit and Delete are deliberately quiet — they are the shopkeeper's tools, and
+ * a big red Delete next to a customer's face is an accident waiting to happen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PriceSheet(
-    product: Product,
+    pwv: ProductWithVariants,
     currencySymbol: String,
     priceFontSize: PriceFontSize,
     showCostPrice: Boolean,
+    showWholesalePrice: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    val price = product.sellingPrice.toPriceString(currencySymbol)
+    val variants = pwv.variants
+
+    // Track the selected variant — default to first, persisted across
+    // recompositions but not across sheet open/close (rememberSaveable
+    // with the product id as key resets when a different product opens).
+    var selectedVariantId by rememberSaveable(pwv.product.id) {
+        mutableStateOf(variants.firstOrNull()?.id ?: 0L)
+    }
+    val selected: ProductVariant? = variants.find { it.id == selectedVariantId }
+        ?: variants.firstOrNull()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -72,9 +93,10 @@ fun PriceSheet(
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (!product.brand.isNullOrBlank()) {
+            // Brand label
+            if (!pwv.product.brand.isNullOrBlank()) {
                 Text(
-                    text = product.brand.uppercase(),
+                    text = pwv.product.brand.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.tertiary,
                     textAlign = TextAlign.Center
@@ -82,41 +104,81 @@ fun PriceSheet(
                 Spacer(Modifier.height(4.dp))
             }
 
+            // Product name
             Text(
-                text = product.name,
+                text = pwv.product.name,
                 style = MaterialTheme.typography.headlineSmall,
                 color = colors.onPrimaryContainer,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
 
-            PriceHero(
-                price = price,
-                packLabel = product.packLabel,
-                baseSize = priceFontSize.heroSize,
-                inStock = product.inStock
-            )
-
-            if (showCostPrice && product.costPrice != null) {
-                Spacer(Modifier.height(12.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = colors.tertiaryContainer
+            // Variant chip row — only shown when there are multiple variants
+            if (variants.size > 1) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = stringResource(
-                            R.string.cost_price_label,
-                            product.costPrice.toPriceString(currencySymbol)
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.onTertiaryContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                    )
+                    items(variants) { variant ->
+                        FilterChip(
+                            selected = variant.id == selected?.id,
+                            onClick = { selectedVariantId = variant.id },
+                            label = { Text(variant.variantLabel) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Hero price card
+            if (selected != null) {
+                val price = selected.sellingPrice.toPriceString(currencySymbol)
+                PriceHero(
+                    price = price,
+                    packLabel = selected.variantLabel,
+                    baseSize = priceFontSize.heroSize,
+                    inStock = selected.inStock
+                )
+
+                // Wholesale price row
+                if (showWholesalePrice && selected.wholesalePrice != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.secondaryContainer
+                    ) {
+                        Text(
+                            text = "Wholesale: ${selected.wholesalePrice.toPriceString(currencySymbol)}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.onSecondaryContainer,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+
+                // Cost price row
+                if (showCostPrice && selected.costPrice != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.tertiaryContainer
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.cost_price_label,
+                                selected.costPrice.toPriceString(currencySymbol)
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.onTertiaryContainer,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        )
+                    }
                 }
             }
 
-            product.notes?.takeIf { it.isNotBlank() }?.let { note ->
+            // Notes
+            pwv.product.notes?.takeIf { it.isNotBlank() }?.let { note ->
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = stringResource(R.string.note_label, note),
@@ -128,6 +190,7 @@ fun PriceSheet(
 
             Spacer(Modifier.height(24.dp))
 
+            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -173,9 +236,7 @@ fun PriceSheet(
 
 /**
  * The price card. The number shrinks as it gets longer so `₹1,25,000` fits the
- * same card as `₹45` without ever wrapping or clipping — Compose 1.7 has no
- * auto-sizing text, and letting a hero price ellipsise would be worse than any
- * amount of arithmetic here.
+ * same card as `₹45` without ever wrapping or clipping.
  */
 @Composable
 private fun PriceHero(
@@ -239,8 +300,7 @@ private fun PriceHero(
 }
 
 /**
- * Steps the hero price down once the string outgrows the card width. Six
- * characters (`₹1,200`) fit at full size on the narrowest phone we target.
+ * Steps the hero price down once the string outgrows the card width.
  */
 internal fun fitPriceSize(baseSize: Int, length: Int): Int {
     val scale = when {

@@ -64,6 +64,7 @@ import com.bhaavbook.app.ui.viewmodel.SettingsViewModel
 @Composable
 fun SettingsScreen(
     onNavigateUp: () -> Unit,
+    onManageBrands: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -141,6 +142,35 @@ fun SettingsScreen(
                 checked = settings.showCostPrice,
                 onCheckedChange = viewModel::updateShowCostPrice
             )
+
+            SwitchRow(
+                titleRes = R.string.settings_show_wholesale,
+                subtitleRes = R.string.settings_show_wholesale_sub,
+                checked = settings.showWholesalePrice,
+                onCheckedChange = viewModel::updateShowWholesalePrice
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onManageBrands() }
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.settings_manage_brands),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.onSurface
+                    )
+                    Text(
+                        text = stringResource(R.string.settings_manage_brands_sub),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
 
             Divider()
             SectionHeader(R.string.settings_price_size)
