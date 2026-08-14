@@ -1,7 +1,7 @@
 package com.bhaavbook.app.csv
 
 /**
- * Maps a CSV column to a product field in the app.
+ * Maps a CSV column to a product / variant field in the app.
  * [csvHeaders] lists all header spellings that auto-guess to this field.
  */
 enum class AppField(val displayName: String, val csvHeaders: List<String>) {
@@ -9,19 +9,41 @@ enum class AppField(val displayName: String, val csvHeaders: List<String>) {
         "Name *",
         listOf("name", "product", "product name", "item", "item name", "product_name")
     ),
+    BRAND_SLUG(
+        "Brand Slug",
+        listOf("brand_slug", "brand slug", "brand_id")
+    ),
     BRAND(
-        "Brand",
+        "Brand Name",
         listOf("brand", "brand name", "company", "manufacturer", "make", "brand_name")
     ),
+    CATEGORY_SLUG(
+        "Category Slug",
+        listOf("category_slug", "category slug", "cat_slug", "category_id")
+    ),
     CATEGORY(
-        "Category",
+        "Category Name",
         listOf("category", "cat", "type", "group", "department")
+    ),
+    VARIANT_LABEL(
+        "Variant Label",
+        listOf(
+            "variant_label", "variant label", "variant", "size", "pack size",
+            "pack_size", "unit", "weight", "volume", "quantity_value"
+        )
     ),
     SELLING_PRICE(
         "Selling Price *",
         listOf(
             "selling_price", "selling price", "price", "mrp", "rate",
             "sale price", "sp", "sell price", "retail price"
+        )
+    ),
+    WHOLESALE_PRICE(
+        "Wholesale Price",
+        listOf(
+            "wholesale_price", "wholesale price", "wholesale", "trade_price",
+            "trade price", "wp", "bulk_price"
         )
     ),
     COST_PRICE(
@@ -31,20 +53,12 @@ enum class AppField(val displayName: String, val csvHeaders: List<String>) {
             "cost", "purchase"
         )
     ),
-    UNIT(
-        "Unit",
-        listOf("unit", "uom", "measure", "unit of measure")
-    ),
-    QUANTITY_VALUE(
-        "Quantity / Pack Size",
-        listOf(
-            "quantity_value", "quantity value", "qty value", "pack size",
-            "size", "weight", "volume", "quantity"
-        )
-    ),
-    IN_STOCK(
+    VARIANT_IN_STOCK(
         "In Stock",
-        listOf("in_stock", "in stock", "stock", "available", "instock", "availability")
+        listOf(
+            "variant_in_stock", "variant in stock", "in_stock", "in stock",
+            "stock", "available", "instock", "availability"
+        )
     ),
     NOTES(
         "Notes",
