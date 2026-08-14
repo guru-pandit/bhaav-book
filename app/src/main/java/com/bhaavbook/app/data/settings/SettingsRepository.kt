@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -24,7 +23,9 @@ data class AppSettings(
     val priceFontSize: PriceFontSize = PriceFontSize.LARGE,
     val autoFocusSearch: Boolean = true,
     /** When true, cost price is shown in the big price bottom sheet. */
-    val showCostPrice: Boolean = false
+    val showCostPrice: Boolean = false,
+    /** When true, wholesale price is shown in the big price bottom sheet. */
+    val showWholesalePrice: Boolean = false
 )
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "bhaavbook_settings")
@@ -40,6 +41,7 @@ class SettingsRepository @Inject constructor(
         val PRICE_FONT_SIZE = stringPreferencesKey("price_font_size")
         val AUTO_FOCUS_SEARCH = booleanPreferencesKey("auto_focus_search")
         val SHOW_COST_PRICE = booleanPreferencesKey("show_cost_price")
+        val SHOW_WHOLESALE_PRICE = booleanPreferencesKey("show_wholesale_price")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -51,7 +53,8 @@ class SettingsRepository @Inject constructor(
                 prefs[Keys.PRICE_FONT_SIZE] ?: PriceFontSize.LARGE.name
             ),
             autoFocusSearch = prefs[Keys.AUTO_FOCUS_SEARCH] ?: true,
-            showCostPrice = prefs[Keys.SHOW_COST_PRICE] ?: false
+            showCostPrice = prefs[Keys.SHOW_COST_PRICE] ?: false,
+            showWholesalePrice = prefs[Keys.SHOW_WHOLESALE_PRICE] ?: false
         )
     }
 
@@ -77,5 +80,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun updateShowCostPrice(show: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_COST_PRICE] = show }
+    }
+
+    suspend fun updateShowWholesalePrice(show: Boolean) {
+        context.dataStore.edit { it[Keys.SHOW_WHOLESALE_PRICE] = show }
     }
 }

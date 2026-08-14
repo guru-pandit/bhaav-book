@@ -6,7 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bhaavbook.app.csv.CsvExporter
-import com.bhaavbook.app.data.model.Product
+import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.repository.ProductFilter
 import com.bhaavbook.app.data.repository.ProductRepository
 import com.bhaavbook.app.data.repository.SortOrder
@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ProductListUiState(
-    val products: List<Product> = emptyList(),
+    val products: List<ProductWithVariants> = emptyList(),
     val isLoading: Boolean = true,
     val searchQuery: String = "",
     val sortOrder: SortOrder = SortOrder.NAME_ASC,
@@ -50,9 +50,8 @@ data class ProductListUiState(
 }
 
 /**
- * A one-shot message for the snackbar. Delivered over a channel rather than
- * parked in [ProductListUiState] so two identical messages in a row both show,
- * and so a rotation doesn't replay a stale one.
+ * A one-shot message for the snackbar. Delivered over a channel so two
+ * identical messages in a row both show, and a rotation doesn't replay a stale one.
  */
 data class UiMessage(
     val text: String,
@@ -89,25 +88,25 @@ class ProductListViewModel @Inject constructor(
     )
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
-    private var pendingDelete: Product? = null
+    private var pendingDelete: ProductWithVariants? = null
     private var pendingDeleteJob: Job? = null
 
     /**
      * An empty query needs no debounce — clearing the box should snap back to
-     * the full list instantly. Typing gets a short window so each keystroke
-     * doesn't fire its own query.
+     * the full list instantly.
      */
     private val debouncedQuery = _searchQuery.debounce { query ->
         if (query.isEmpty()) 0L else SEARCH_DEBOUNCE_MS
     }
 
-    private val visibleProducts: Flow<List<Product>> =
+    private val visibleProducts: Flow<List<ProductWithVariants>> =
         combine(debouncedQuery, _sortOrder, _activeFilter) { query, sort, filter ->
             SearchInputs(query, sort, filter)
         }
             .flatMapLatest { (query, sort, filter) -> repository.getProducts(query, sort, filter) }
             .combine(_hiddenIds) { products, hidden ->
-                if (hidden.isEmpty()) products else products.filterNot { it.id in hidden }
+                if (hidden.isEmpty()) products
+                else products.filterNot { it.product.id in hidden }
             }
 
     private val listState = combine(
@@ -169,53 +168,45 @@ class ProductListViewModel @Inject constructor(
     // Delete with undo
     // -----------------------------------------------------------------------
 
-    /**
-     * Hides [product] at once and commits the delete when the undo window
-     * closes. Both the timer and the write live in [applicationScope], so
-     * navigating away — or the ViewModel being cleared outright — cannot
-     * resurrect a row the shopkeeper already deleted.
-     */
-    fun requestDelete(product: Product) {
+    fun requestDelete(pwv: ProductWithVariants) {
         flushPendingDelete()
 
-        pendingDelete = product
-        _hiddenIds.value = _hiddenIds.value + product.id
-        _messages.trySend(UiMessage("\"${product.name}\" deleted", undoLabel = "UNDO"))
+        pendingDelete = pwv
+        _hiddenIds.value = _hiddenIds.value + pwv.product.id
+        _messages.trySend(UiMessage("\"${pwv.product.name}\" deleted", undoLabel = "UNDO"))
 
         pendingDeleteJob = applicationScope.launch {
             delay(UNDO_WINDOW_MS)
-            commitDelete(product)
+            commitDelete(pwv)
         }
     }
 
     fun undoDelete() {
-        val product = pendingDelete ?: return
+        val pwv = pendingDelete ?: return
         pendingDeleteJob?.cancel()
         pendingDeleteJob = null
         pendingDelete = null
-        _hiddenIds.value = _hiddenIds.value - product.id
+        _hiddenIds.value = _hiddenIds.value - pwv.product.id
     }
 
-    /** Commits a still-pending delete immediately instead of letting it queue up. */
     private fun flushPendingDelete() {
-        val product = pendingDelete ?: return
+        val pwv = pendingDelete ?: return
         pendingDeleteJob?.cancel()
         pendingDeleteJob = null
-        applicationScope.launch { commitDelete(product) }
+        applicationScope.launch { commitDelete(pwv) }
     }
 
-    private suspend fun commitDelete(product: Product) {
+    private suspend fun commitDelete(pwv: ProductWithVariants) {
         pendingDelete = null
-        runCatching { repository.delete(product) }
-            .onFailure { _messages.trySend(UiMessage("Could not delete \"${product.name}\"")) }
-        _hiddenIds.value = _hiddenIds.value - product.id
+        runCatching { repository.delete(pwv.product) }
+            .onFailure { _messages.trySend(UiMessage("Could not delete \"${pwv.product.name}\"")) }
+        _hiddenIds.value = _hiddenIds.value - pwv.product.id
     }
 
     // -----------------------------------------------------------------------
     // Export & share
     // -----------------------------------------------------------------------
 
-    /** Writes the whole price list to the file the user picked through SAF. */
     fun exportToCsvUri(uri: Uri) {
         viewModelScope.launch {
             val snapshot = repository.getAllSnapshot()
@@ -229,7 +220,6 @@ class ProductListViewModel @Inject constructor(
         }
     }
 
-    /** Hands the price list to WhatsApp / Email / Drive via the system share sheet. */
     fun shareCsv(context: Context) {
         viewModelScope.launch {
             val snapshot = repository.getAllSnapshot()
@@ -249,7 +239,7 @@ class ProductListViewModel @Inject constructor(
     )
 
     private data class ListInputs(
-        val products: List<Product>,
+        val products: List<ProductWithVariants>,
         val query: String,
         val sort: SortOrder,
         val filter: ProductFilter
