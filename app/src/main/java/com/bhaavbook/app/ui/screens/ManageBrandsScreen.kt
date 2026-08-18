@@ -244,7 +244,7 @@ private fun ItemFormSheet(
     // Slug warning dialog
     if (form.showSlugWarning) {
         AlertDialog(
-            onDismissRequest = onSave,
+            onDismissRequest = onDismiss,
             title = { Text("Change slug?") },
             text = {
                 Text(

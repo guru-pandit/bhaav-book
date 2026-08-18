@@ -6,6 +6,7 @@ import com.bhaavbook.app.data.model.ProductVariant
 import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.repository.BrandRepository
 import com.bhaavbook.app.data.repository.CategoryRepository
+import com.bhaavbook.app.format.MAX_PRICE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -102,6 +103,10 @@ class CsvImporter @Inject constructor(
                 errors += ImportRowError(rowNumber, row, "Price \"$priceRaw\" is negative")
                 return@forEachIndexed
             }
+            if (sellingPrice > MAX_PRICE) {
+                errors += ImportRowError(rowNumber, row, "Price \"$priceRaw\" is too large")
+                return@forEachIndexed
+            }
 
             // Slug-first brand & category resolution
             val brandSlug = fields[AppField.BRAND_SLUG]
@@ -139,7 +144,11 @@ class CsvImporter @Inject constructor(
 
             val existingProduct = productMap[pKey]
             if (existingProduct != null) {
-                // If variant with same label exists, update it; otherwise append
+                // If variant with same label exists, update it; otherwise append.
+                // Product-level fields (category, notes) are intentionally NOT
+                // refreshed from this row — the first row for a given product
+                // key sets them and later variant rows for the same product
+                // are assumed to repeat, not override, that info.
                 val vIndex = existingProduct.variants.indexOfFirst {
                     it.label.equals(variantLabel, ignoreCase = true)
                 }

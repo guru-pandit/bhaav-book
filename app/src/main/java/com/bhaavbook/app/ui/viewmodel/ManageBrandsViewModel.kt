@@ -24,6 +24,7 @@ data class ItemFormState(
     val name: String = "",
     val slug: String = "",
     val originalSlug: String = "",
+    val originalCreatedAt: Long = 0L,
     val isCustomSlug: Boolean = false,
     val isEditingSlug: Boolean = false,
     val nameError: String? = null,
@@ -74,7 +75,8 @@ class ManageBrandsViewModel @Inject constructor(
                 id = brand.id,
                 name = brand.name,
                 slug = brand.slug,
-                originalSlug = brand.slug
+                originalSlug = brand.slug,
+                originalCreatedAt = brand.createdAt
             )
         )
     }
@@ -85,7 +87,8 @@ class ManageBrandsViewModel @Inject constructor(
                 id = category.id,
                 name = category.name,
                 slug = category.slug,
-                originalSlug = category.slug
+                originalSlug = category.slug,
+                originalCreatedAt = category.createdAt
             )
         )
     }
@@ -151,13 +154,17 @@ class ManageBrandsViewModel @Inject constructor(
                 if (form.id == 0L) {
                     brandRepository.save(name, customSlug = slug.ifEmpty { null })
                 } else {
-                    brandRepository.update(Brand(id = form.id, name = name, slug = slug))
+                    brandRepository.update(
+                        Brand(id = form.id, name = name, slug = slug, createdAt = form.originalCreatedAt)
+                    )
                 }
             } else {
                 if (form.id == 0L) {
                     categoryRepository.save(name, customSlug = slug.ifEmpty { null })
                 } else {
-                    categoryRepository.update(Category(id = form.id, name = name, slug = slug))
+                    categoryRepository.update(
+                        Category(id = form.id, name = name, slug = slug, createdAt = form.originalCreatedAt)
+                    )
                 }
             }
             _uiState.value = _uiState.value.copy(formState = null)

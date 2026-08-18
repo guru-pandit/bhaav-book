@@ -42,14 +42,24 @@ interface ProductDao {
     @Upsert
     suspend fun upsertVariant(variant: ProductVariant): Long
 
+    @Upsert
+    suspend fun upsertVariants(variants: List<ProductVariant>)
+
     @Delete
     suspend fun deleteVariant(variant: ProductVariant)
+
+    @Query("DELETE FROM product_variants WHERE id = :id")
+    suspend fun deleteVariantById(id: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAllVariants(variants: List<ProductVariant>): List<Long>
 
     @Query("DELETE FROM product_variants WHERE productId = :productId")
     suspend fun deleteAllVariantsForProduct(productId: Long)
+
+    /** One-shot (non-Flow) read of a product's current variants — used to merge a CSV import. */
+    @Query("SELECT * FROM product_variants WHERE productId = :productId")
+    suspend fun getVariantsForProductSnapshot(productId: Long): List<ProductVariant>
 
     // -----------------------------------------------------------------------
     // Single reads
@@ -210,8 +220,16 @@ interface ProductDao {
      * Commits a whole CSV import as one atomic transaction.
      *
      * For each [ProductWithVariants] in the list:
-     * - The product row is upserted (insert or replace by id).
-     * - All existing variants for that product are deleted and reinserted.
+     * - A product with a non-zero id is updated in place (a real SQL UPDATE);
+     *   a zero id is inserted fresh. Never routed through the REPLACE-conflict
+     *   [insert] for an existing id — REPLACE deletes the row first, which
+     *   would cascade-delete every variant before this method gets a chance
+     *   to preserve them.
+     * - Incoming variants are matched to existing ones by label (case
+     *   insensitive) and upserted, keeping the existing row's id/created_at.
+     *   Existing variants with a label absent from this batch are left
+     *   untouched — a CSV that only lists some of a product's variants (a
+     *   partial price update) must not delete the ones it doesn't mention.
      *
      * Either every row lands or none does, so a partial failure cannot leave
      * the price list holding half a spreadsheet.
@@ -219,12 +237,26 @@ interface ProductDao {
     @Transaction
     suspend fun applyImport(products: List<ProductWithVariants>) {
         products.forEach { pwv ->
-            val productId = insert(pwv.product)
-            deleteAllVariantsForProduct(productId)
-            val variantsWithId = pwv.variants.map { it.copy(productId = productId) }
-            if (variantsWithId.isNotEmpty()) {
-                insertAllVariants(variantsWithId)
+            val productId = if (pwv.product.id != 0L) {
+                update(pwv.product)
+                pwv.product.id
+            } else {
+                insert(pwv.product)
             }
+
+            if (pwv.variants.isEmpty()) return@forEach
+
+            val existingByLabel = getVariantsForProductSnapshot(productId)
+                .associateBy { it.variantLabel.trim().lowercase() }
+            val merged = pwv.variants.map { incoming ->
+                val existing = existingByLabel[incoming.variantLabel.trim().lowercase()]
+                if (existing != null) {
+                    incoming.copy(id = existing.id, productId = productId, createdAt = existing.createdAt)
+                } else {
+                    incoming.copy(id = 0L, productId = productId)
+                }
+            }
+            upsertVariants(merged)
         }
     }
 }

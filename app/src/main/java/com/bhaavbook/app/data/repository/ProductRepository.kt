@@ -160,6 +160,8 @@ class ProductRepository @Inject constructor(
 
     suspend fun deleteVariant(variant: ProductVariant) = dao.deleteVariant(variant)
 
+    suspend fun deleteVariantById(id: Long) = dao.deleteVariantById(id)
+
     // -----------------------------------------------------------------------
     // Duplicate detection (brand + name)
     // -----------------------------------------------------------------------

@@ -10,6 +10,7 @@ import com.bhaavbook.app.data.model.ProductVariant
 import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.repository.ProductRepository
 import com.bhaavbook.app.data.settings.SettingsRepository
+import com.bhaavbook.app.format.MAX_PRICE
 import com.bhaavbook.app.ui.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,9 +20,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-/** Anything above this is far more likely a typo than a real price. */
-private const val MAX_PRICE = 10_000_000.0
 
 /** State for the inline "add / edit variant" form. */
 data class VariantFormState(
@@ -75,6 +73,10 @@ class ProductEditViewModel @Inject constructor(
     private val productId: Long = savedStateHandle[Screen.EditProduct.ARG_PRODUCT_ID] ?: 0L
     private var originalProduct: Product? = null
 
+    /** Variant ids present in the DB when the product was first loaded — used
+     * on save to tell "removed in this session" apart from "never existed". */
+    private var originalVariantIds: Set<Long> = emptySet()
+
     /**
      * Set once the user has been shown the duplicate warning. The second tap on
      * Save goes through — the old code warned *and* saved in the same pass,
@@ -108,6 +110,7 @@ class ProductEditViewModel @Inject constructor(
         repository.getProductWithVariants(id).collect { pwv ->
             if (pwv != null && _state.value.name.isEmpty()) {
                 originalProduct = pwv.product
+                originalVariantIds = pwv.variants.map { it.id }.toSet()
                 _state.value = _state.value.copy(
                     name = pwv.product.name,
                     brand = pwv.product.brand.orEmpty(),
@@ -303,11 +306,11 @@ class ProductEditViewModel @Inject constructor(
                 val savedId = if (productId == 0L) repository.insert(product)
                 else { repository.update(product); productId }
 
-                // Persist all variant changes: upsert survivors, delete removed ones
+                // Persist all variant changes: upsert survivors, delete removed ones.
                 val currentVariantIds = snapshot.variants.map { it.id }.toSet()
-                // Remove any variants that were deleted in the form
-                // (variants with id=0 are new and don't need deletion)
-                // Upsert all current variants
+                val removedVariantIds = originalVariantIds - currentVariantIds
+                removedVariantIds.forEach { id -> repository.deleteVariantById(id) }
+
                 snapshot.variants.forEach { v ->
                     repository.upsertVariant(v.copy(productId = savedId))
                 }
