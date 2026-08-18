@@ -5,39 +5,48 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.annotation.StringRes
 import com.bhaavbook.app.R
-import com.bhaavbook.app.data.model.DEFAULT_CATEGORIES
 import com.bhaavbook.app.data.model.Product
-import com.bhaavbook.app.data.model.ProductUnit
+import com.bhaavbook.app.data.model.ProductVariant
+import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.repository.ProductRepository
 import com.bhaavbook.app.data.settings.SettingsRepository
-import com.bhaavbook.app.format.toEditableString
+import com.bhaavbook.app.format.MAX_PRICE
 import com.bhaavbook.app.ui.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** Anything above this is far more likely a typo than a real price. */
-private const val MAX_PRICE = 10_000_000.0
+/** State for the inline "add / edit variant" form. */
+data class VariantFormState(
+    val id: Long = 0L,           // 0 = new; non-zero = editing existing
+    val label: String = "",
+    val sellingPrice: String = "",
+    val wholesalePrice: String = "",
+    val costPrice: String = "",
+    val inStock: Boolean = true,
+    @StringRes val labelError: Int? = null,
+    @StringRes val sellingPriceError: Int? = null,
+    val duplicateLabelError: String? = null
+)
 
 data class ProductEditUiState(
     val name: String = "",
     val brand: String = "",
     val category: String = "",
-    val sellingPrice: String = "",
-    val costPrice: String = "",
-    val unit: ProductUnit = ProductUnit.PIECE,
-    val quantityValue: String = "",
-    val inStock: Boolean = true,
     val notes: String = "",
 
+    /** Current committed variants on this product. */
+    val variants: List<ProductVariant> = emptyList(),
+
+    /** Non-null when the "Add/Edit variant" sheet is open. */
+    val variantForm: VariantFormState? = null,
+
     @StringRes val nameError: Int? = null,
-    @StringRes val sellingPriceError: Int? = null,
     /** Pre-formatted, because it embeds the name of the clashing item. */
     val duplicateWarning: String? = null,
 
@@ -46,8 +55,11 @@ data class ProductEditUiState(
     val savedSuccessfully: Boolean = false,
     val saveError: String? = null,
 
-    val availableCategories: List<String> = DEFAULT_CATEGORIES,
-    val availableBrands: List<String> = emptyList()
+    val availableCategories: List<String> = emptyList(),
+    val availableBrands: List<String> = emptyList(),
+
+    val showCostPrice: Boolean = false,
+    val showWholesalePrice: Boolean = false
 )
 
 @HiltViewModel
@@ -61,6 +73,10 @@ class ProductEditViewModel @Inject constructor(
     private val productId: Long = savedStateHandle[Screen.EditProduct.ARG_PRODUCT_ID] ?: 0L
     private var originalProduct: Product? = null
 
+    /** Variant ids present in the DB when the product was first loaded — used
+     * on save to tell "removed in this session" apart from "never existed". */
+    private var originalVariantIds: Set<Long> = emptySet()
+
     /**
      * Set once the user has been shown the duplicate warning. The second tap on
      * Save goes through — the old code warned *and* saved in the same pass,
@@ -73,51 +89,48 @@ class ProductEditViewModel @Inject constructor(
     val state: StateFlow<ProductEditUiState> = combine(
         _state,
         repository.getAllCategories(),
-        repository.getAllBrands()
-    ) { current, dbCategories, dbBrands ->
+        repository.getAllBrands(),
+        settingsRepository.settings
+    ) { current, dbCategories, dbBrands, settings ->
         current.copy(
-            availableCategories = (DEFAULT_CATEGORIES + dbCategories).distinctBy { it.lowercase() },
-            availableBrands = dbBrands
+            availableCategories = dbCategories,
+            availableBrands = dbBrands,
+            showCostPrice = settings.showCostPrice,
+            showWholesalePrice = settings.showWholesalePrice
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _state.value)
 
     init {
-        viewModelScope.launch {
-            if (productId != 0L) {
-                loadProduct(productId)
-            } else {
-                // A single read, not a subscription: the default unit seeds a new
-                // form once. Collecting it would reset the picker under the user
-                // every time any setting changed.
-                val defaultUnit = ProductUnit.fromString(settingsRepository.settings.first().defaultUnit)
-                _state.value = _state.value.copy(unit = defaultUnit)
-            }
+        if (productId != 0L) {
+            viewModelScope.launch { loadProduct(productId) }
         }
     }
 
     private suspend fun loadProduct(id: Long) {
-        val product = repository.getById(id) ?: return
-        originalProduct = product
-        _state.value = _state.value.copy(
-            name = product.name,
-            brand = product.brand.orEmpty(),
-            category = product.category.orEmpty(),
-            sellingPrice = product.sellingPrice.toEditableString(),
-            costPrice = product.costPrice?.toEditableString().orEmpty(),
-            unit = product.unit,
-            quantityValue = product.quantityValue?.toEditableString().orEmpty(),
-            inStock = product.inStock,
-            notes = product.notes.orEmpty(),
-            isEditMode = true
-        )
+        repository.getProductWithVariants(id).collect { pwv ->
+            if (pwv != null && _state.value.name.isEmpty()) {
+                originalProduct = pwv.product
+                originalVariantIds = pwv.variants.map { it.id }.toSet()
+                _state.value = _state.value.copy(
+                    name = pwv.product.name,
+                    brand = pwv.product.brand.orEmpty(),
+                    category = pwv.product.category.orEmpty(),
+                    notes = pwv.product.notes.orEmpty(),
+                    variants = pwv.variants,
+                    isEditMode = true
+                )
+            } else if (pwv != null) {
+                // Refresh variants if they change underneath us (e.g. after a save)
+                _state.value = _state.value.copy(variants = pwv.variants)
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
-    // Field updates
+    // Product-level field updates
     // -----------------------------------------------------------------------
 
     fun onNameChange(value: String) = update {
-        // Changing the identity of the item invalidates the duplicate decision.
         duplicateAcknowledged = false
         it.copy(name = value, nameError = null, duplicateWarning = null)
     }
@@ -129,28 +142,118 @@ class ProductEditViewModel @Inject constructor(
 
     fun onCategoryChange(value: String) = update { it.copy(category = value) }
 
-    fun onSellingPriceChange(value: String) = update {
-        it.copy(sellingPrice = value.filterPriceInput(), sellingPriceError = null)
-    }
-
-    fun onCostPriceChange(value: String) = update {
-        it.copy(costPrice = value.filterPriceInput())
-    }
-
-    fun onUnitChange(value: ProductUnit) = update { it.copy(unit = value) }
-
-    fun onQuantityValueChange(value: String) = update {
-        it.copy(quantityValue = value.filterPriceInput())
-    }
-
-    fun onInStockChange(value: Boolean) = update { it.copy(inStock = value) }
-
     fun onNotesChange(value: String) = update { it.copy(notes = value) }
 
     fun clearSaveError() = update { it.copy(saveError = null) }
 
-    private inline fun update(block: (ProductEditUiState) -> ProductEditUiState) {
-        _state.value = block(_state.value)
+    // -----------------------------------------------------------------------
+    // Variant form management
+    // -----------------------------------------------------------------------
+
+    /** Opens the variant sheet for a new variant with an optional pre-filled label. */
+    fun openAddVariantForm(prefillLabel: String = "") {
+        update {
+            it.copy(variantForm = VariantFormState(label = prefillLabel))
+        }
+    }
+
+    /** Opens the variant sheet pre-filled with an existing variant for editing. */
+    fun openEditVariantForm(variant: ProductVariant) {
+        update {
+            it.copy(
+                variantForm = VariantFormState(
+                    id = variant.id,
+                    label = variant.variantLabel,
+                    sellingPrice = variant.sellingPrice.toEditableString(),
+                    wholesalePrice = variant.wholesalePrice?.toEditableString().orEmpty(),
+                    costPrice = variant.costPrice?.toEditableString().orEmpty(),
+                    inStock = variant.inStock
+                )
+            )
+        }
+    }
+
+    fun dismissVariantForm() = update { it.copy(variantForm = null) }
+
+    fun onVariantLabelChange(value: String) = updateForm {
+        it.copy(label = value, labelError = null, duplicateLabelError = null)
+    }
+
+    fun onVariantSellingPriceChange(value: String) = updateForm {
+        it.copy(sellingPrice = value.filterPriceInput(), sellingPriceError = null)
+    }
+
+    fun onVariantWholesalePriceChange(value: String) = updateForm {
+        it.copy(wholesalePrice = value.filterPriceInput())
+    }
+
+    fun onVariantCostPriceChange(value: String) = updateForm {
+        it.copy(costPrice = value.filterPriceInput())
+    }
+
+    fun onVariantInStockChange(value: Boolean) = updateForm { it.copy(inStock = value) }
+
+    /** Validates and commits the variant form into the variants list. */
+    fun saveVariantForm() {
+        val form = _state.value.variantForm ?: return
+        val label = form.label.trim()
+        val price = form.sellingPrice.trim().toDoubleOrNull()
+
+        val labelError = if (label.isEmpty()) R.string.error_name_required else null
+        val priceError = when {
+            price == null -> R.string.error_price_required
+            price <= 0 -> R.string.error_price_negative
+            price > MAX_PRICE -> R.string.error_price_too_large
+            else -> null
+        }
+
+        // Duplicate label check (within the same product, excluding the variant being edited)
+        val existingLabels = _state.value.variants
+            .filter { it.id != form.id }
+            .map { it.variantLabel.trim().lowercase() }
+        val duplicateLabel = if (label.lowercase() in existingLabels) {
+            "A variant labelled \"$label\" already exists"
+        } else null
+
+        if (labelError != null || priceError != null || duplicateLabel != null) {
+            updateForm {
+                it.copy(
+                    labelError = labelError,
+                    sellingPriceError = priceError,
+                    duplicateLabelError = duplicateLabel
+                )
+            }
+            return
+        }
+
+        requireNotNull(price)
+
+        val now = System.currentTimeMillis()
+        val newVariant = ProductVariant(
+            id = form.id,
+            productId = productId,
+            variantLabel = label,
+            sellingPrice = price,
+            wholesalePrice = form.wholesalePrice.trim().toDoubleOrNull(),
+            costPrice = form.costPrice.trim().toDoubleOrNull(),
+            inStock = form.inStock,
+            createdAt = if (form.id == 0L) now else
+                _state.value.variants.find { it.id == form.id }?.createdAt ?: now,
+            updatedAt = now
+        )
+
+        update { state ->
+            val updated = if (form.id == 0L) {
+                state.variants + newVariant
+            } else {
+                state.variants.map { if (it.id == form.id) newVariant else it }
+            }
+            state.copy(variants = updated, variantForm = null)
+        }
+    }
+
+    fun deleteVariant(variant: ProductVariant) = update { state ->
+        state.copy(variants = state.variants.filter { it.id != variant.id })
     }
 
     // -----------------------------------------------------------------------
@@ -162,21 +265,17 @@ class ProductEditViewModel @Inject constructor(
         if (snapshot.isSaving) return
 
         val name = snapshot.name.trim()
-        val price = snapshot.sellingPrice.trim().toDoubleOrNull()
-
         val nameError = if (name.isEmpty()) R.string.error_name_required else null
-        val priceError = when {
-            price == null -> R.string.error_price_required
-            price < 0 -> R.string.error_price_negative
-            price > MAX_PRICE -> R.string.error_price_too_large
-            else -> null
-        }
 
-        if (nameError != null || priceError != null) {
-            update { it.copy(nameError = nameError, sellingPriceError = priceError) }
+        if (nameError != null) {
+            update { it.copy(nameError = nameError) }
             return
         }
-        requireNotNull(price)
+
+        if (snapshot.variants.isEmpty()) {
+            update { it.copy(saveError = "Add at least one variant before saving.") }
+            return
+        }
 
         viewModelScope.launch {
             update { it.copy(isSaving = true, saveError = null) }
@@ -187,30 +286,34 @@ class ProductEditViewModel @Inject constructor(
                 val duplicate = repository.checkDuplicate(name, brand, excludeId = productId)
                 if (duplicate != null) {
                     duplicateAcknowledged = true
-                    update {
-                        it.copy(isSaving = false, duplicateWarning = duplicate.displayTitle)
-                    }
+                    update { it.copy(isSaving = false, duplicateWarning = duplicate.displayTitle) }
                     return@launch
                 }
             }
 
+            val now = System.currentTimeMillis()
             val product = Product(
                 id = productId,
                 name = name,
                 brand = brand,
                 category = snapshot.category.trim().takeIf { it.isNotEmpty() },
-                sellingPrice = price,
-                costPrice = snapshot.costPrice.trim().toDoubleOrNull(),
-                unit = snapshot.unit,
-                quantityValue = snapshot.quantityValue.trim().toDoubleOrNull()?.takeIf { it > 0 },
-                inStock = snapshot.inStock,
                 notes = snapshot.notes.trim().takeIf { it.isNotEmpty() },
-                createdAt = originalProduct?.createdAt ?: System.currentTimeMillis(),
-                updatedAt = System.currentTimeMillis()
+                createdAt = originalProduct?.createdAt ?: now,
+                updatedAt = now
             )
 
             runCatching {
-                if (productId == 0L) repository.insert(product) else repository.update(product)
+                val savedId = if (productId == 0L) repository.insert(product)
+                else { repository.update(product); productId }
+
+                // Persist all variant changes: upsert survivors, delete removed ones.
+                val currentVariantIds = snapshot.variants.map { it.id }.toSet()
+                val removedVariantIds = originalVariantIds - currentVariantIds
+                removedVariantIds.forEach { id -> repository.deleteVariantById(id) }
+
+                snapshot.variants.forEach { v ->
+                    repository.upsertVariant(v.copy(productId = savedId))
+                }
             }.onSuccess {
                 update { it.copy(isSaving = false, savedSuccessfully = true) }
             }.onFailure { error ->
@@ -219,27 +322,26 @@ class ProductEditViewModel @Inject constructor(
         }
     }
 
+    private inline fun update(block: (ProductEditUiState) -> ProductEditUiState) {
+        _state.value = block(_state.value)
+    }
+
+    private inline fun updateForm(block: (VariantFormState) -> VariantFormState) {
+        val form = _state.value.variantForm ?: return
+        _state.value = _state.value.copy(variantForm = block(form))
+    }
 }
 
-/**
- * Keeps a numeric field numeric.
- *
- * `"1,200".toDoubleOrNull()` is null, and a Decimal keyboard on an Indian
- * layout happily offers both `,` and `.` — so a shopkeeper who types the
- * thousands separator out of habit would be told a perfectly ordinary price is
- * invalid. Commas are silently dropped; the first `.` is kept as the decimal
- * point and any later one is ignored.
- */
+private fun Double.toEditableString(): String =
+    if (this == toLong().toDouble()) toLong().toString() else toString()
+
 private fun String.filterPriceInput(): String {
     val kept = StringBuilder()
     var seenDecimalPoint = false
     for (char in this) {
         when {
             char.isDigit() -> kept.append(char)
-            char == '.' && !seenDecimalPoint -> {
-                seenDecimalPoint = true
-                kept.append('.')
-            }
+            char == '.' && !seenDecimalPoint -> { seenDecimalPoint = true; kept.append('.') }
             else -> Unit
         }
     }

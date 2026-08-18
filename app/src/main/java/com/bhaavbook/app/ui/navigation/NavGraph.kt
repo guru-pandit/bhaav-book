@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.bhaavbook.app.ui.screens.CsvImportScreen
+import com.bhaavbook.app.ui.screens.ManageBrandsScreen
 import com.bhaavbook.app.ui.screens.ProductEditScreen
 import com.bhaavbook.app.ui.screens.ProductListScreen
 import com.bhaavbook.app.ui.screens.SettingsScreen
@@ -49,6 +50,13 @@ fun NavGraph(navController: NavHostController) {
 
         composable(Screen.Settings.route) {
             SettingsScreen(
+                onNavigateUp = { navController.popBackStack() },
+                onManageBrands = { navController.navigate(Screen.ManageBrands.route) }
+            )
+        }
+
+        composable(Screen.ManageBrands.route) {
+            ManageBrandsScreen(
                 onNavigateUp = { navController.popBackStack() }
             )
         }

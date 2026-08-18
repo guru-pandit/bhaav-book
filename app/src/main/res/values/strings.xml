@@ -90,6 +90,10 @@
     <string name="settings_autofocus_sub">Start typing the moment the app opens</string>
     <string name="settings_show_cost">Show cost price</string>
     <string name="settings_show_cost_sub">Adds your purchase cost to the price sheet. Leave off when the phone faces a customer.</string>
+    <string name="settings_show_wholesale">Show wholesale price</string>
+    <string name="settings_show_wholesale_sub">Adds wholesale price to the price sheet.</string>
+    <string name="settings_manage_brands">Manage Brands &amp; Categories</string>
+    <string name="settings_manage_brands_sub">Add, rename, or edit slugs for brands and categories.</string>
     <string name="settings_price_size">Price size</string>
     <string name="settings_price_size_normal">Normal</string>
     <string name="settings_price_size_large">Large</string>

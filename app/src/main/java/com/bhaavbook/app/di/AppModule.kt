@@ -3,6 +3,9 @@ package com.bhaavbook.app.di
 import android.content.Context
 import androidx.room.Room
 import com.bhaavbook.app.data.db.AppDatabase
+import com.bhaavbook.app.data.db.BrandDao
+import com.bhaavbook.app.data.db.CategoryDao
+import com.bhaavbook.app.data.db.MIGRATION_1_2
 import com.bhaavbook.app.data.db.ProductDao
 import dagger.Module
 import dagger.Provides
@@ -40,6 +43,7 @@ object AppModule {
             // shopkeeper's price list and there is no cloud copy of it. Bumping
             // the schema version without supplying a Migration must fail loudly
             // in development, never silently wipe a live install.
+            .addMigrations(MIGRATION_1_2)
             .build()
 
     @Provides
@@ -48,11 +52,19 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideBrandDao(db: AppDatabase): BrandDao = db.brandDao()
+
+    @Provides
+    @Singleton
+    fun provideCategoryDao(db: AppDatabase): CategoryDao = db.categoryDao()
+
+    @Provides
+    @Singleton
     @ApplicationScope
     fun provideApplicationScope(): CoroutineScope =
         CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // SettingsRepository, ProductRepository, CsvParser, CsvImporter and
-    // CsvExporter are @Singleton with @Inject constructors — Hilt resolves them
-    // without an explicit @Provides.
+    // SettingsRepository, ProductRepository, BrandRepository, CategoryRepository,
+    // CsvParser, CsvImporter and CsvExporter are @Singleton with @Inject
+    // constructors — Hilt resolves them without an explicit @Provides.
 }

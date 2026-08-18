@@ -19,3 +19,5 @@ captures/
 *.keystore
 *.keystore.b64
 keystore.properties
+
+issue.md

@@ -3,6 +3,8 @@ package com.bhaavbook.app.data.repository
 import app.cash.turbine.test
 import com.bhaavbook.app.data.db.ProductDao
 import com.bhaavbook.app.data.model.Product
+import com.bhaavbook.app.data.model.ProductVariant
+import com.bhaavbook.app.data.model.ProductWithVariants
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -85,7 +87,7 @@ class ProductSearchTest {
 
     @Test
     fun `a blank query reads the sorted table and never touches FTS`() = runTest {
-        every { dao.getAllByName() } returns flowOf(listOf(product(1, "Kapur")))
+        every { dao.getAllByName() } returns flowOf(listOf(productWithVariants(1, "Kapur")))
 
         repository.getProducts("", SortOrder.NAME_ASC, ProductFilter.None).test {
             assertEquals(1, awaitItem().size)
@@ -95,7 +97,7 @@ class ProductSearchTest {
 
     @Test
     fun `a one-character query uses LIKE, which FTS prefixes handle poorly`() = runTest {
-        every { dao.searchLike("k") } returns flowOf(listOf(product(1, "Kapur")))
+        every { dao.searchLike("k") } returns flowOf(listOf(productWithVariants(1, "Kapur")))
 
         repository.getProducts("k", SortOrder.NAME_ASC, ProductFilter.None).test {
             assertEquals(1, awaitItem().size)
@@ -123,24 +125,30 @@ class ProductSearchTest {
      */
     @Test
     fun `a name that starts with the query sorts above one that contains it`() = runTest {
-        val contains = product(1, "Agarbatti Chandan Premium")
-        val startsWith = product(2, "Chandan Powder")
+        val contains = productWithVariants(1, "Agarbatti Chandan Premium")
+        val startsWith = productWithVariants(2, "Chandan Powder")
         every { dao.searchFts(any()) } returns flowOf(listOf(contains, startsWith))
 
         repository.getProducts("chandan", SortOrder.NAME_ASC, ProductFilter.None).test {
-            assertEquals(listOf("Chandan Powder", "Agarbatti Chandan Premium"), awaitItem().map { it.name })
+            assertEquals(
+                listOf("Chandan Powder", "Agarbatti Chandan Premium"),
+                awaitItem().map { it.product.name }
+            )
             awaitComplete()
         }
     }
 
     @Test
     fun `an explicitly chosen sort order wins over relevance`() = runTest {
-        val cheap = product(1, "Zzz Chandan", price = 10.0)
-        val dear = product(2, "Chandan Powder", price = 900.0)
+        val cheap = productWithVariants(1, "Zzz Chandan", price = 10.0)
+        val dear = productWithVariants(2, "Chandan Powder", price = 900.0)
         every { dao.searchFts(any()) } returns flowOf(listOf(dear, cheap))
 
         repository.getProducts("chandan", SortOrder.PRICE_DESC, ProductFilter.None).test {
-            assertEquals(listOf("Chandan Powder", "Zzz Chandan"), awaitItem().map { it.name })
+            assertEquals(
+                listOf("Chandan Powder", "Zzz Chandan"),
+                awaitItem().map { it.product.name }
+            )
             awaitComplete()
         }
     }
@@ -153,13 +161,13 @@ class ProductSearchTest {
     fun `a brand filter matches regardless of how the brand was capitalised`() = runTest {
         every { dao.getAllByName() } returns flowOf(
             listOf(
-                product(1, "Agarbatti", brand = "cycle"),
-                product(2, "Kapur", brand = "Mangaldeep")
+                productWithVariants(1, "Agarbatti", brand = "cycle"),
+                productWithVariants(2, "Kapur", brand = "Mangaldeep")
             )
         )
 
         repository.getProducts("", SortOrder.NAME_ASC, ProductFilter.ByBrand("Cycle")).test {
-            assertEquals(listOf("Agarbatti"), awaitItem().map { it.name })
+            assertEquals(listOf("Agarbatti"), awaitItem().map { it.product.name })
             awaitComplete()
         }
     }
@@ -178,13 +186,13 @@ class ProductSearchTest {
     fun `an out-of-stock item is hidden by the in-stock filter`() = runTest {
         every { dao.getAllByName() } returns flowOf(
             listOf(
-                product(1, "Available", inStock = true),
-                product(2, "Finished", inStock = false)
+                productWithVariants(1, "Available", inStock = true),
+                productWithVariants(2, "Finished", inStock = false)
             )
         )
 
         repository.getProducts("", SortOrder.NAME_ASC, ProductFilter.InStockOnly).test {
-            assertEquals(listOf("Available"), awaitItem().map { it.name })
+            assertEquals(listOf("Available"), awaitItem().map { it.product.name })
             awaitComplete()
         }
     }
@@ -202,17 +210,30 @@ class ProductSearchTest {
         assertEquals(existing, repository.checkDuplicate("Kapur", "Moksh", excludeId = 0))
     }
 
+    /** A bare product row, for DAO methods that still deal in [Product] directly. */
     private fun product(
+        id: Long,
+        name: String,
+        brand: String? = null
+    ) = Product(id = id, name = name, brand = brand)
+
+    /** A product with a single "Standard" variant, for the DAO's list/search queries. */
+    private fun productWithVariants(
         id: Long,
         name: String,
         brand: String? = null,
         price: Double = 45.0,
         inStock: Boolean = true
-    ) = Product(
-        id = id,
-        name = name,
-        brand = brand,
-        sellingPrice = price,
-        inStock = inStock
+    ) = ProductWithVariants(
+        product = product(id, name, brand),
+        variants = listOf(
+            ProductVariant(
+                id = id,
+                productId = id,
+                variantLabel = "Standard",
+                sellingPrice = price,
+                inStock = inStock
+            )
+        )
     )
 }

@@ -42,8 +42,7 @@ class SettingsViewModel @Inject constructor(
 
     /**
      * Blank input keeps the stored symbol rather than saving an empty string —
-     * a price list with no currency mark in front of the numbers is worse than
-     * whatever the user was mid-way through typing.
+     * a price list with no currency mark is worse than whatever mid-type value.
      */
     fun updateCurrencySymbol(symbol: String) {
         val cleaned = symbol.trim().take(3)
@@ -60,6 +59,8 @@ class SettingsViewModel @Inject constructor(
     fun updateAutoFocusSearch(enabled: Boolean) = launchUpdate { repo.updateAutoFocusSearch(enabled) }
 
     fun updateShowCostPrice(show: Boolean) = launchUpdate { repo.updateShowCostPrice(show) }
+
+    fun updateShowWholesalePrice(show: Boolean) = launchUpdate { repo.updateShowWholesalePrice(show) }
 
     private fun launchUpdate(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

@@ -5,7 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
-import com.bhaavbook.app.data.model.Product
+import com.bhaavbook.app.data.model.ProductWithVariants
+import com.bhaavbook.app.data.model.generateSlug
 import com.bhaavbook.app.format.toEditableString
 import com.opencsv.CSVWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -24,24 +25,21 @@ class CsvExporter @Inject constructor(
     companion object {
         /** Canonical header row — matches what the importer auto-detects. */
         val CSV_HEADERS = arrayOf(
-            "name", "brand", "category", "selling_price", "cost_price",
-            "unit", "quantity_value", "in_stock", "notes"
+            "name", "brand_slug", "brand", "category_slug", "category",
+            "variant_label", "selling_price", "wholesale_price", "cost_price",
+            "variant_in_stock", "notes"
         )
 
         /** Filled-in rows for the "download a sample file" button. */
         val SAMPLE_ROWS: List<Array<String>> = listOf(
-            arrayOf("Agarbatti Chandan", "Cycle", "Agarbatti & Dhoop", "45", "38", "GRAM", "100", "yes", "Fast moving"),
-            arrayOf("Kapur Tablet", "Mangaldeep", "Camphor & Wicks", "60", "50", "GRAM", "50", "yes", ""),
-            arrayOf("Kumkum", "Moksh", "Kumkum & Haldi", "25", "19", "GRAM", "50", "yes", ""),
-            arrayOf("Cotton Wick Long", "Local", "Camphor & Wicks", "20", "14", "PACKET", "1", "no", ""),
-            arrayOf("Til Oil", "Patanjali", "Oil & Ghee", "180", "158", "ML", "500", "yes", "")
+            arrayOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "40", "38", "yes", "Fast moving"),
+            arrayOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "250 g", "100", "90", "85", "yes", "Fast moving"),
+            arrayOf("Kapur Tablet", "mangaldeep", "Mangaldeep", "kamphor", "Kamphor", "50 g", "60", "55", "50", "yes", ""),
+            arrayOf("Kumkum", "", "Moksh", "pooja-items", "Pooja Items", "50 g", "25", "", "19", "yes", ""),
+            arrayOf("Cotton Wick Long", "", "Local", "pooja-items", "Pooja Items", "Packet", "20", "", "14", "no", ""),
+            arrayOf("Til Oil", "patanjali", "Patanjali", "pooja-items", "Pooja Items", "500 ml", "180", "165", "158", "yes", "")
         )
 
-        /**
-         * Files handed to other apps live in their own cache subdirectory so the
-         * FileProvider grant covers exactly this, and not everything else the app
-         * happens to have cached.
-         */
         private const val SHARE_DIR = "shared"
         private const val SHARE_FILE_NAME = "chaitanya_stores_prices.csv"
     }
@@ -51,10 +49,12 @@ class CsvExporter @Inject constructor(
     // -----------------------------------------------------------------------
 
     /** Writes [products] as CSV to the SAF document at [uri]. */
-    suspend fun exportToCsv(uri: Uri, products: List<Product>) = withContext(Dispatchers.IO) {
+    suspend fun exportToCsv(uri: Uri, products: List<ProductWithVariants>) = withContext(Dispatchers.IO) {
         openWriter(uri).use { writer ->
             writer.writeNext(CSV_HEADERS)
-            products.forEach { writer.writeNext(it.toCsvRow()) }
+            products.forEach { pwv ->
+                pwv.toCsvRows().forEach { row -> writer.writeNext(row) }
+            }
         }
     }
 
@@ -68,11 +68,7 @@ class CsvExporter @Inject constructor(
 
     /**
      * Writes only the rows that failed an import, with an `error_reason` column
-     * appended, so the user can fix that file and re-import just those rows.
-     *
-     * [originalHeaders] must be the headers of the file that was imported, not
-     * the app's canonical ones: the raw cells are echoed back verbatim, and
-     * pairing them with a different set of headers would misalign every column.
+     * appended.
      */
     suspend fun exportErrorRows(
         uri: Uri,
@@ -91,21 +87,15 @@ class CsvExporter @Inject constructor(
     // Share sheet
     // -----------------------------------------------------------------------
 
-    /**
-     * Builds a chooser that hands the price list to WhatsApp, Gmail, Drive or
-     * anything else that takes a file.
-     *
-     * The read grant is set on the inner intent *and* mirrored into `clipData`:
-     * several popular targets read the attachment from the clip instead of
-     * `EXTRA_STREAM`, and without it they receive a URI they cannot open.
-     */
-    suspend fun createShareCsvIntent(products: List<Product>): Intent = withContext(Dispatchers.IO) {
+    suspend fun createShareCsvIntent(products: List<ProductWithVariants>): Intent = withContext(Dispatchers.IO) {
         val shareDir = File(context.cacheDir, SHARE_DIR).apply { mkdirs() }
         val file = File(shareDir, SHARE_FILE_NAME)
 
         CSVWriter(OutputStreamWriter(file.outputStream(), Charsets.UTF_8)).use { writer ->
             writer.writeNext(CSV_HEADERS)
-            products.forEach { writer.writeNext(it.toCsvRow()) }
+            products.forEach { pwv ->
+                pwv.toCsvRows().forEach { row -> writer.writeNext(row) }
+            }
         }
 
         val contentUri = FileProvider.getUriForFile(
@@ -129,10 +119,6 @@ class CsvExporter @Inject constructor(
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Internal
-    // -----------------------------------------------------------------------
-
     private fun openWriter(uri: Uri): CSVWriter {
         val outputStream = context.contentResolver.openOutputStream(uri)
             ?: error("Cannot open that file for writing. Pick a different location.")
@@ -141,17 +127,46 @@ class CsvExporter @Inject constructor(
 }
 
 /**
- * Prices are written plainly — `45`, not `45.0` — because this file is meant to
- * be opened in a spreadsheet and read by a person.
+ * Converts a [ProductWithVariants] to one or more CSV rows (one per variant).
  */
-private fun Product.toCsvRow(): Array<String> = arrayOf(
-    name,
-    brand.orEmpty(),
-    category.orEmpty(),
-    sellingPrice.toEditableString(),
-    costPrice?.toEditableString().orEmpty(),
-    unit.name,
-    quantityValue?.toEditableString().orEmpty(),
-    if (inStock) "yes" else "no",
-    notes.orEmpty()
-)
+private fun ProductWithVariants.toCsvRows(): List<Array<String>> {
+    val brandSlug = product.brand?.takeIf { it.isNotBlank() }?.let { generateSlug(it) }.orEmpty()
+    val categorySlug = product.category?.takeIf { it.isNotBlank() }?.let { generateSlug(it) }.orEmpty()
+
+    if (variants.isEmpty()) {
+        return listOf(
+            arrayOf(
+                product.name,
+                brandSlug,
+                product.brand.orEmpty(),
+                categorySlug,
+                product.category.orEmpty(),
+                "Standard",
+                "0",
+                "",
+                "",
+                "yes",
+                product.notes.orEmpty()
+            )
+        )
+    }
+
+    return variants.map { variant ->
+        arrayOf(
+            product.name,
+            brandSlug,
+            product.brand.orEmpty(),
+            categorySlug,
+            product.category.orEmpty(),
+            variant.variantLabel,
+            variant.sellingPrice.toEditableString(),
+            variant.wholesalePrice?.toEditableString().orEmpty(),
+            variant.costPrice?.toEditableString().orEmpty(),
+            if (variant.inStock) "yes" else "no",
+            product.notes.orEmpty()
+        )
+    }
+}
+
+private fun Double.toEditableString(): String =
+    if (this == toLong().toDouble()) toLong().toString() else toString()

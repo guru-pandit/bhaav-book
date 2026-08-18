@@ -29,7 +29,9 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Hilt needs its own Application for @HiltAndroidTest to inject into —
+        // the stock AndroidJUnitRunner instantiates the real BhaavBookApplication.
+        testInstrumentationRunner = "com.bhaavbook.app.HiltTestRunner"
         vectorDrawables { useSupportLibrary = true }
     }
 
@@ -163,7 +165,14 @@ dependencies {
     testImplementation(libs.turbine)
 
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.espresso.core)
+    // Stubs the SAF file-picker Intent (ACTION_OPEN_DOCUMENT) for CSV import E2E tests.
+    androidTestImplementation(libs.androidx.espresso.intents)
+    androidTestImplementation(libs.androidx.core.ktx)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation(libs.hilt.android.testing)
+    androidTestImplementation(libs.androidx.room.runtime)
+    kspAndroidTest(libs.hilt.compiler)
 }
