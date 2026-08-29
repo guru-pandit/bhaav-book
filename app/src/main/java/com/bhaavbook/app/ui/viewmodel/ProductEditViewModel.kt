@@ -29,7 +29,6 @@ data class VariantFormState(
     val sellingMin: String = "",
     val wholesalePrice: String = "",
     val wholesaleMin: String = "",
-    val costPrice: String = "",
     val inStock: Boolean = true,
     @StringRes val labelError: Int? = null,
     @StringRes val sellingPriceError: Int? = null,
@@ -62,7 +61,6 @@ data class ProductEditUiState(
     val availableCategories: List<String> = emptyList(),
     val availableBrands: List<String> = emptyList(),
 
-    val showCostPrice: Boolean = false,
     val showWholesalePrice: Boolean = false
 )
 
@@ -99,7 +97,6 @@ class ProductEditViewModel @Inject constructor(
         current.copy(
             availableCategories = dbCategories,
             availableBrands = dbBrands,
-            showCostPrice = settings.showCostPrice,
             showWholesalePrice = settings.showWholesalePrice
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _state.value)
@@ -172,7 +169,6 @@ class ProductEditViewModel @Inject constructor(
                     sellingMin = variant.sellingMin?.toEditableString().orEmpty(),
                     wholesalePrice = variant.wholesalePrice?.toEditableString().orEmpty(),
                     wholesaleMin = variant.wholesaleMin?.toEditableString().orEmpty(),
-                    costPrice = variant.costPrice?.toEditableString().orEmpty(),
                     inStock = variant.inStock
                 )
             )
@@ -199,10 +195,6 @@ class ProductEditViewModel @Inject constructor(
 
     fun onVariantWholesaleMinChange(value: String) = updateForm {
         it.copy(wholesaleMin = value.filterPriceInput(), wholesaleMinError = null)
-    }
-
-    fun onVariantCostPriceChange(value: String) = updateForm {
-        it.copy(costPrice = value.filterPriceInput())
     }
 
     fun onVariantInStockChange(value: Boolean) = updateForm { it.copy(inStock = value) }
@@ -270,7 +262,6 @@ class ProductEditViewModel @Inject constructor(
             sellingMin = sellingMinVal,
             wholesalePrice = wholesalePriceVal,
             wholesaleMin = wholesaleMinVal,
-            costPrice = form.costPrice.trim().toDoubleOrNull(),
             inStock = form.inStock,
             createdAt = if (form.id == 0L) now else
                 _state.value.variants.find { it.id == form.id }?.createdAt ?: now,

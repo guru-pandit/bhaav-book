@@ -213,7 +213,6 @@ fun ProductEditScreen(
                             VariantRow(
                                 variant = variant,
                                 showWholesale = state.showWholesalePrice,
-                                showCost = state.showCostPrice,
                                 onEdit = { viewModel.openEditVariantForm(variant) },
                                 onDelete = { viewModel.deleteVariant(variant) }
                             )
@@ -242,13 +241,11 @@ fun ProductEditScreen(
             VariantFormSheet(
                 form = state.variantForm!!,
                 showWholesale = state.showWholesalePrice,
-                showCost = state.showCostPrice,
                 onLabelChange = viewModel::onVariantLabelChange,
                 onSellingPriceChange = viewModel::onVariantSellingPriceChange,
                 onSellingMinChange = viewModel::onVariantSellingMinChange,
                 onWholesalePriceChange = viewModel::onVariantWholesalePriceChange,
                 onWholesaleMinChange = viewModel::onVariantWholesaleMinChange,
-                onCostPriceChange = viewModel::onVariantCostPriceChange,
                 onInStockChange = viewModel::onVariantInStockChange,
                 onQuickFill = viewModel::onVariantLabelChange,
                 onSave = viewModel::saveVariantForm,
@@ -382,7 +379,6 @@ private fun SelectorSheet(
 private fun VariantRow(
     variant: ProductVariant,
     showWholesale: Boolean,
-    showCost: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -407,13 +403,6 @@ private fun VariantRow(
             if (showWholesale && variant.wholesalePrice != null) {
                 Text(
                     "Wholesale ${com.bhaavbook.app.format.formatPriceRange(variant.wholesaleMin, variant.wholesalePrice, "₹")}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant
-                )
-            }
-            if (showCost && variant.costPrice != null) {
-                Text(
-                    "Cost ₹${variant.costPrice.toEditableString()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
@@ -449,13 +438,11 @@ private fun VariantRow(
 private fun VariantFormSheet(
     form: VariantFormState,
     showWholesale: Boolean,
-    showCost: Boolean,
     onLabelChange: (String) -> Unit,
     onSellingPriceChange: (String) -> Unit,
     onSellingMinChange: (String) -> Unit,
     onWholesalePriceChange: (String) -> Unit,
     onWholesaleMinChange: (String) -> Unit,
-    onCostPriceChange: (String) -> Unit,
     onInStockChange: (Boolean) -> Unit,
     onQuickFill: (String) -> Unit,
     onSave: () -> Unit,
@@ -557,19 +544,6 @@ private fun VariantFormSheet(
                 }
             }
 
-            AnimatedVisibility(visible = showCost) {
-                OutlinedTextField(
-                    value = form.costPrice,
-                    onValueChange = onCostPriceChange,
-                    label = { Text("Cost price (₹)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    )
-                )
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -605,6 +579,3 @@ private fun SectionLabel(text: String) {
         modifier = Modifier.padding(top = 4.dp)
     )
 }
-
-private fun Double.toEditableString(): String =
-    if (this == toLong().toDouble()) toLong().toString() else toString()

@@ -137,13 +137,6 @@ fun SettingsScreen(
             )
 
             SwitchRow(
-                titleRes = R.string.settings_show_cost,
-                subtitleRes = R.string.settings_show_cost_sub,
-                checked = settings.showCostPrice,
-                onCheckedChange = viewModel::updateShowCostPrice
-            )
-
-            SwitchRow(
                 titleRes = R.string.settings_show_wholesale,
                 subtitleRes = R.string.settings_show_wholesale_sub,
                 checked = settings.showWholesalePrice,

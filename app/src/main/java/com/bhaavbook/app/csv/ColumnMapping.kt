@@ -60,13 +60,6 @@ enum class AppField(val displayName: String, val csvHeaders: List<String>) {
             "wp_min", "min_wholesale_price", "min wholesale price"
         )
     ),
-    COST_PRICE(
-        "Cost Price",
-        listOf(
-            "cost_price", "cost price", "purchase price", "buy price", "cp",
-            "cost", "purchase"
-        )
-    ),
     VARIANT_IN_STOCK(
         "In Stock",
         listOf(

@@ -18,7 +18,6 @@ It is deliberately a small app. The one job — show a price, fast, in large leg
 - **Sub-second lookup:** auto-focused search on launch, 180ms-debounced FTS4 search, results ranked by relevance (exact name match → starts-with → brand match → contains).
 - **Arm's-length price display:** a bottom sheet showing the selling price in large, high-contrast, tabular-figure text (56–80 sp depending on the Settings size, auto-shrinking for long numbers so `₹1,23,456` never wraps).
 - **Indian price formatting:** `1,23,456` grouping, whole rupees drop the paise (`45` not `45.00`).
-- **Cost price privacy:** hidden by default; only shown when explicitly enabled in Settings, for exactly this reason — the phone is often handed across the counter.
 - **Bulk CSV import/export:** header auto-detection, 10-row preview, column mapping, duplicate handling (Skip / Update / Add anyway), per-row error collection with a re-exportable "fix these rows" CSV, atomic commit (all rows land or none do).
 - **One-tap CSV sharing:** WhatsApp / Email / Drive via the Android share sheet, backed by `FileProvider`.
 - **100% offline & private:** no `INTERNET` permission anywhere in the manifest. Nothing leaves the phone except through a share the user explicitly triggers.
@@ -82,7 +81,6 @@ data class Product(
     val brand: String? = null,
     val category: String? = null,
     val sellingPrice: Double,          // Required, shown to the customer
-    val costPrice: Double? = null,     // Hidden unless Settings > Show cost price
     val unit: ProductUnit = ProductUnit.PIECE,
     val quantityValue: Double? = null, // Pack size, e.g. 100 with unit GRAM
     val inStock: Boolean = true,
@@ -129,7 +127,7 @@ Content-linked to `Product`, indexing `name`, `brand`, `category`.
 ## 6. CSV Import / Export Engine
 
 ### Expected headers (case-insensitive, any order, auto-mapped with a manual override step)
-`name, brand, category, selling_price, cost_price, unit, quantity_value, in_stock, notes`
+`name, brand, category, selling_price, unit, quantity_value, in_stock, notes`
 
 ### Importer (`csv/CsvImporter.kt`)
 - Delimiter auto-detection now covers **comma, semicolon, and tab** (a majority vote over the header line).

@@ -7,6 +7,7 @@ import com.bhaavbook.app.data.db.BrandDao
 import com.bhaavbook.app.data.db.CategoryDao
 import com.bhaavbook.app.data.db.MIGRATION_1_2
 import com.bhaavbook.app.data.db.MIGRATION_2_3
+import com.bhaavbook.app.data.db.MIGRATION_3_4
 import com.bhaavbook.app.data.db.ProductDao
 import dagger.Module
 import dagger.Provides
@@ -44,7 +45,7 @@ object AppModule {
             // shopkeeper's price list and there is no cloud copy of it. Bumping
             // the schema version without supplying a Migration must fail loudly
             // in development, never silently wipe a live install.
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
 
     @Provides

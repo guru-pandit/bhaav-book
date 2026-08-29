@@ -26,18 +26,18 @@ class CsvExporter @Inject constructor(
         /** Canonical header row — matches what the importer auto-detects. */
         val CSV_HEADERS = arrayOf(
             "name", "brand_slug", "brand", "category_slug", "category",
-            "variant_label", "selling_price", "selling_min", "wholesale_price", "wholesale_min", "cost_price",
+            "variant_label", "selling_price", "selling_min", "wholesale_price", "wholesale_min",
             "variant_in_stock", "notes"
         )
 
         /** Filled-in rows for the "download a sample file" button. */
         val SAMPLE_ROWS: List<Array<String>> = listOf(
-            arrayOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "40", "40", "35", "38", "yes", "Fast moving"),
-            arrayOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "250 g", "100", "", "90", "", "85", "yes", "Fast moving"),
-            arrayOf("Kapur Tablet", "mangaldeep", "Mangaldeep", "kamphor", "Kamphor", "50 g", "60", "55", "55", "50", "50", "yes", ""),
-            arrayOf("Kumkum", "", "Moksh", "pooja-items", "Pooja Items", "50 g", "25", "", "", "", "19", "yes", ""),
-            arrayOf("Cotton Wick Long", "", "Local", "pooja-items", "Pooja Items", "Packet", "20", "", "", "", "14", "no", ""),
-            arrayOf("Til Oil", "patanjali", "Patanjali", "pooja-items", "Pooja Items", "500 ml", "180", "170", "165", "160", "158", "yes", "")
+            arrayOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "40", "40", "35", "yes", "Fast moving"),
+            arrayOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "250 g", "100", "", "90", "", "yes", "Fast moving"),
+            arrayOf("Kapur Tablet", "mangaldeep", "Mangaldeep", "kamphor", "Kamphor", "50 g", "60", "55", "55", "50", "yes", ""),
+            arrayOf("Kumkum", "", "Moksh", "pooja-items", "Pooja Items", "50 g", "25", "", "", "", "yes", ""),
+            arrayOf("Cotton Wick Long", "", "Local", "pooja-items", "Pooja Items", "Packet", "20", "", "", "", "no", ""),
+            arrayOf("Til Oil", "patanjali", "Patanjali", "pooja-items", "Pooja Items", "500 ml", "180", "170", "165", "160", "yes", "")
         )
 
         private const val SHARE_DIR = "shared"
@@ -146,7 +146,6 @@ private fun ProductWithVariants.toCsvRows(): List<Array<String>> {
                 "",
                 "",
                 "",
-                "",
                 "yes",
                 product.notes.orEmpty()
             )
@@ -165,7 +164,6 @@ private fun ProductWithVariants.toCsvRows(): List<Array<String>> {
             variant.sellingMin?.toEditableString().orEmpty(),
             variant.wholesalePrice?.toEditableString().orEmpty(),
             variant.wholesaleMin?.toEditableString().orEmpty(),
-            variant.costPrice?.toEditableString().orEmpty(),
             if (variant.inStock) "yes" else "no",
             product.notes.orEmpty()
         )

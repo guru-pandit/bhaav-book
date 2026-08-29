@@ -22,8 +22,6 @@ data class AppSettings(
     val theme: ThemeOption = ThemeOption.SYSTEM,
     val priceFontSize: PriceFontSize = PriceFontSize.LARGE,
     val autoFocusSearch: Boolean = true,
-    /** When true, cost price is shown in the big price bottom sheet. */
-    val showCostPrice: Boolean = false,
     /** When true, wholesale price is shown in the big price bottom sheet. */
     val showWholesalePrice: Boolean = false
 )
@@ -40,7 +38,6 @@ class SettingsRepository @Inject constructor(
         val THEME = stringPreferencesKey("theme")
         val PRICE_FONT_SIZE = stringPreferencesKey("price_font_size")
         val AUTO_FOCUS_SEARCH = booleanPreferencesKey("auto_focus_search")
-        val SHOW_COST_PRICE = booleanPreferencesKey("show_cost_price")
         val SHOW_WHOLESALE_PRICE = booleanPreferencesKey("show_wholesale_price")
     }
 
@@ -53,7 +50,6 @@ class SettingsRepository @Inject constructor(
                 prefs[Keys.PRICE_FONT_SIZE] ?: PriceFontSize.LARGE.name
             ),
             autoFocusSearch = prefs[Keys.AUTO_FOCUS_SEARCH] ?: true,
-            showCostPrice = prefs[Keys.SHOW_COST_PRICE] ?: false,
             showWholesalePrice = prefs[Keys.SHOW_WHOLESALE_PRICE] ?: false
         )
     }
@@ -76,10 +72,6 @@ class SettingsRepository @Inject constructor(
 
     suspend fun updateAutoFocusSearch(enabled: Boolean) {
         context.dataStore.edit { it[Keys.AUTO_FOCUS_SEARCH] = enabled }
-    }
-
-    suspend fun updateShowCostPrice(show: Boolean) {
-        context.dataStore.edit { it[Keys.SHOW_COST_PRICE] = show }
     }
 
     suspend fun updateShowWholesalePrice(show: Boolean) {

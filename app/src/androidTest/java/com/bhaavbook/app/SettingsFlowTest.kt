@@ -2,7 +2,6 @@ package com.bhaavbook.app
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -57,19 +56,17 @@ class SettingsFlowTest {
     @After
     fun tearDown() = runBlocking {
         settingsRepository.updateCurrencySymbol("₹")
-        settingsRepository.updateShowCostPrice(false)
         settingsRepository.updateShowWholesalePrice(false)
     }
 
-    private fun seedTataSalt(costPrice: Double? = null) {
+    private fun seedTataSalt() {
         runBlocking {
             val id = productRepository.insert(Product(name = "Tata Salt", brand = "Tata"))
             productRepository.upsertVariant(
                 ProductVariant(
                     productId = id,
                     variantLabel = "1 kg",
-                    sellingPrice = 100.0,
-                    costPrice = costPrice
+                    sellingPrice = 100.0
                 )
             )
         }
@@ -82,21 +79,6 @@ class SettingsFlowTest {
     private fun navigateToSettings() {
         composeRule.onNodeWithContentDescription("More options").performClick()
         composeRule.onNodeWithText("Settings").performClick()
-    }
-
-    @Test
-    fun togglingShowCostPrice_revealsItInThePriceSheet() {
-        seedTataSalt(costPrice = 18.0)
-
-        navigateToSettings()
-        composeRule.onNodeWithText("Show cost price").performClick()
-        composeRule.onNodeWithContentDescription("Back").performClick()
-
-        composeRule.onNodeWithContentDescription("Tata — Tata Salt, ₹100", substring = true)
-            .performClick()
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("Cost ₹18", substring = true).fetchSemanticsNodes().isNotEmpty()
-        }
     }
 
     @Test

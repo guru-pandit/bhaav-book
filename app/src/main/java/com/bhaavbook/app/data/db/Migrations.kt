@@ -197,3 +197,60 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/**
+ * Schema migration from version 3 → 4.
+ *
+ * What changed:
+ * - Drops `costPrice` from `product_variants` — the cost-price feature was
+ *   removed from the app. SQLite has no DROP COLUMN before 3.35, so the
+ *   safe path is the same rename → recreate → copy → drop used by
+ *   [MIGRATION_1_2]: existing cost values are discarded, everything else
+ *   (including each variant's `id`, so foreign references stay valid)
+ *   carries over unchanged.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `product_variants` RENAME TO `product_variants_old`")
+
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `product_variants` (
+                `id`            INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `productId`     INTEGER NOT NULL,
+                `variantLabel`  TEXT    NOT NULL,
+                `sellingPrice`  REAL    NOT NULL,
+                `selling_min`   REAL,
+                `wholesalePrice` REAL,
+                `wholesale_min` REAL,
+                `inStock`       INTEGER NOT NULL DEFAULT 1,
+                `created_at`    INTEGER NOT NULL,
+                `updated_at`    INTEGER NOT NULL,
+                FOREIGN KEY(`productId`) REFERENCES `products`(`id`)
+                    ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_product_variants_productId` ON `product_variants`(`productId`)"
+        )
+        db.execSQL(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS `index_product_variants_productId_variantLabel`
+            ON `product_variants`(`productId`, `variantLabel`)
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            """
+            INSERT INTO `product_variants`
+                (id, productId, variantLabel, sellingPrice, selling_min, wholesalePrice, wholesale_min, inStock, created_at, updated_at)
+            SELECT
+                id, productId, variantLabel, sellingPrice, selling_min, wholesalePrice, wholesale_min, inStock, created_at, updated_at
+            FROM `product_variants_old`
+            """.trimIndent()
+        )
+
+        db.execSQL("DROP TABLE `product_variants_old`")
+    }
+}
+

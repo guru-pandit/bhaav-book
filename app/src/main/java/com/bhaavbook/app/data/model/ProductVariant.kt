@@ -10,8 +10,8 @@ import androidx.room.PrimaryKey
  * A single size / price variant of a [Product].
  *
  * A product like "Cycle Agarbatti" has variants "100 g", "250 g", "1 kg" each
- * with their own retail price, optional wholesale price, optional cost price,
- * and an independent in-stock flag.
+ * with their own retail price, optional wholesale price, and an independent
+ * in-stock flag.
  *
  * The combination (productId, variantLabel) is unique — you cannot have two
  * "100 g" variants on the same product.
@@ -51,9 +51,6 @@ data class ProductVariant(
     /** Wholesale minimum price — optional lower bound of wholesale price. */
     @ColumnInfo(name = "wholesale_min")
     val wholesaleMin: Double? = null,
-
-    /** Purchase cost — shown only when Settings › Show cost price is ON. */
-    val costPrice: Double? = null,
 
     val inStock: Boolean = true,
 

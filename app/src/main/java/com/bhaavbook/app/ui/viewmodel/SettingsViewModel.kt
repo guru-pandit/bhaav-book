@@ -58,8 +58,6 @@ class SettingsViewModel @Inject constructor(
 
     fun updateAutoFocusSearch(enabled: Boolean) = launchUpdate { repo.updateAutoFocusSearch(enabled) }
 
-    fun updateShowCostPrice(show: Boolean) = launchUpdate { repo.updateShowCostPrice(show) }
-
     fun updateShowWholesalePrice(show: Boolean) = launchUpdate { repo.updateShowWholesalePrice(show) }
 
     private fun launchUpdate(block: suspend () -> Unit) {

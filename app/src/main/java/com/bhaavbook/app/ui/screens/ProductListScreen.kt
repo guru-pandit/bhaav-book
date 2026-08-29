@@ -270,7 +270,6 @@ fun ProductListScreen(
             pwv = pwv,
             currencySymbol = uiState.settings.currencySymbol,
             priceFontSize = uiState.settings.priceFontSize,
-            showCostPrice = uiState.settings.showCostPrice,
             showWholesalePrice = uiState.settings.showWholesalePrice,
             onEdit = {
                 openProduct = null
