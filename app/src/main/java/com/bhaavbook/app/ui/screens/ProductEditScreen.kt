@@ -492,19 +492,6 @@ private fun VariantFormSheet(
             )
 
             OutlinedTextField(
-                value = form.sellingMin,
-                onValueChange = onSellingMinChange,
-                label = { Text("Selling min price (₹)") },
-                isError = form.sellingMinError != null,
-                supportingText = form.sellingMinError?.let { { Text(it) } },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                )
-            )
-
-            OutlinedTextField(
                 value = form.sellingPrice,
                 onValueChange = onSellingPriceChange,
                 label = { Text("Selling max price (₹) *") },
@@ -517,14 +504,25 @@ private fun VariantFormSheet(
                 )
             )
 
+            OutlinedTextField(
+                value = form.sellingMin,
+                onValueChange = onSellingMinChange,
+                label = { Text("Selling min price (₹)") },
+                isError = form.sellingMinError != null,
+                supportingText = form.sellingMinError?.let { { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+            )
+
             AnimatedVisibility(visible = showWholesale) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
-                        value = form.wholesaleMin,
-                        onValueChange = onWholesaleMinChange,
-                        label = { Text("Wholesale min price (₹)") },
-                        isError = form.wholesaleMinError != null,
-                        supportingText = form.wholesaleMinError?.let { { Text(it) } },
+                        value = form.wholesalePrice,
+                        onValueChange = onWholesalePriceChange,
+                        label = { Text("Wholesale max price (₹)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -532,9 +530,11 @@ private fun VariantFormSheet(
                         )
                     )
                     OutlinedTextField(
-                        value = form.wholesalePrice,
-                        onValueChange = onWholesalePriceChange,
-                        label = { Text("Wholesale max price (₹)") },
+                        value = form.wholesaleMin,
+                        onValueChange = onWholesaleMinChange,
+                        label = { Text("Wholesale min price (₹)") },
+                        isError = form.wholesaleMinError != null,
+                        supportingText = form.wholesaleMinError?.let { { Text(it) } },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(

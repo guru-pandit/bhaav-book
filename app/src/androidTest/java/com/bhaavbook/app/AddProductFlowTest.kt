@@ -44,7 +44,7 @@ class AddProductFlowTest {
 
         composeRule.onNodeWithText("Add variant").performClick()
         composeRule.onNodeWithText("Variant label *").performTextInput("500 g")
-        composeRule.onNodeWithText("Selling price (₹) *").performTextInput("285")
+        composeRule.onNodeWithText("Selling max price (₹) *").performTextInput("285")
         composeRule.onNodeWithText("Add").performClick()
 
         composeRule.onNodeWithText("Save").performClick()

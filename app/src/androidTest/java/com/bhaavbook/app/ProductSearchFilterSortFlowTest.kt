@@ -67,7 +67,8 @@ class ProductSearchFilterSortFlowTest {
         category: String,
         variantLabel: String,
         price: Double,
-        inStock: Boolean
+        inStock: Boolean,
+        sellingMin: Double? = null
     ) {
         val productId = productRepository.insert(Product(name = name, brand = brand, category = category))
         productRepository.upsertVariant(
@@ -75,6 +76,7 @@ class ProductSearchFilterSortFlowTest {
                 productId = productId,
                 variantLabel = variantLabel,
                 sellingPrice = price,
+                sellingMin = sellingMin,
                 inStock = inStock
             )
         )
@@ -160,6 +162,39 @@ class ProductSearchFilterSortFlowTest {
         assertTrue(
             "Priciest item (Amul Butter, ₹285) should sort last: $rowDescriptions",
             rowDescriptions.last().contains("₹285")
+        )
+    }
+
+    /**
+     * Regression test for the price-sort query reading
+     * `COALESCE(selling_min, sellingPrice)` (`ProductDao.getAllByPriceAsc`)
+     * rather than plain `sellingPrice` — a variant's *displayed* max price
+     * can be much higher than its minimum, and the sort must follow the
+     * minimum a shopkeeper actually sells at.
+     */
+    @Test
+    fun sortingByPriceAscending_usesSellingMinWhenSet() {
+        runBlocking {
+            // sellingPrice (200) alone would sort this between Amul Milk (60)
+            // and Amul Butter (285); its sellingMin (10) must sort it first.
+            seed("Ghee Diya", "Local", "Pooja Items", "Piece", price = 200.0, inStock = true, sellingMin = 10.0)
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithContentDescription("Local — Ghee Diya", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithContentDescription("Sort & filter").performClick()
+        composeRule.onNodeWithText("Price: low to high").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            currentRowDescriptions().firstOrNull()?.contains("Ghee Diya") == true
+        }
+
+        val rowDescriptions = currentRowDescriptions()
+        assertTrue(
+            "Ghee Diya (sellingMin=10, sellingPrice=200) should sort first: $rowDescriptions",
+            rowDescriptions.first().contains("Ghee Diya")
         )
     }
 }
