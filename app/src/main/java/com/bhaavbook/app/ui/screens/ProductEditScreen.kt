@@ -98,7 +98,7 @@ fun ProductEditScreen(
     // Duplicate warning dialog
     if (state.duplicateWarning != null) {
         AlertDialog(
-            onDismissRequest = { viewModel.clearSaveError() },
+            onDismissRequest = { viewModel.dismissDuplicateWarning() },
             title = { Text("Duplicate product") },
             text = {
                 Text(
@@ -110,7 +110,7 @@ fun ProductEditScreen(
                 Button(onClick = viewModel::save) { Text("Save anyway") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.clearSaveError() }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.dismissDuplicateWarning() }) { Text("Cancel") }
             }
         )
     }
@@ -523,6 +523,8 @@ private fun VariantFormSheet(
                         value = form.wholesalePrice,
                         onValueChange = onWholesalePriceChange,
                         label = { Text("Wholesale max price (₹)") },
+                        isError = form.wholesalePriceError != null,
+                        supportingText = form.wholesalePriceError?.let { { Text(it) } },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(

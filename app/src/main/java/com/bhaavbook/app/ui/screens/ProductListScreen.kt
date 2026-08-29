@@ -159,7 +159,7 @@ fun ProductListScreen(
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed && message.undoLabel != null) {
-                viewModel.undoDelete()
+                viewModel.undoDelete(message.undoProductId)
             }
         }
     }

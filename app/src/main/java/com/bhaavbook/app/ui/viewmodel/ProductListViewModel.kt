@@ -30,7 +30,9 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 data class ProductListUiState(
@@ -56,7 +58,13 @@ data class ProductListUiState(
 data class UiMessage(
     val text: String,
     /** Set only for reversible actions; drives the snackbar's action button. */
-    val undoLabel: String? = null
+    val undoLabel: String? = null,
+    /**
+     * The product this message's UNDO action reverses. Each delete carries its
+     * own id so the snackbar the user actually taps reverses *that* delete,
+     * even when several deletes are pending at once.
+     */
+    val undoProductId: Long? = null
 )
 
 @HiltViewModel
@@ -88,8 +96,15 @@ class ProductListViewModel @Inject constructor(
     )
     val messages: Flow<UiMessage> = _messages.receiveAsFlow()
 
-    private var pendingDelete: ProductWithVariants? = null
-    private var pendingDeleteJob: Job? = null
+    /**
+     * Deletes whose 4.5 s undo window is still open, keyed by product id. Each
+     * delete is independent — deleting a second row does not finalise the
+     * first, and each row's snackbar undoes exactly its own delete. Concurrent
+     * because [requestDelete]/[undoDelete] run on the main thread while
+     * [commitDelete] runs on [applicationScope].
+     */
+    private val pendingDeletes = ConcurrentHashMap<Long, ProductWithVariants>()
+    private val pendingDeleteJobs = ConcurrentHashMap<Long, Job>()
 
     /**
      * An empty query needs no debounce — clearing the box should snap back to
@@ -169,38 +184,36 @@ class ProductListViewModel @Inject constructor(
     // -----------------------------------------------------------------------
 
     fun requestDelete(pwv: ProductWithVariants) {
-        flushPendingDelete()
+        val id = pwv.product.id
 
-        pendingDelete = pwv
-        _hiddenIds.value = _hiddenIds.value + pwv.product.id
-        _messages.trySend(UiMessage("\"${pwv.product.name}\" deleted", undoLabel = "UNDO"))
+        // Re-deleting a row whose window is still open just restarts its timer.
+        pendingDeleteJobs.remove(id)?.cancel()
+        pendingDeletes[id] = pwv
+        _hiddenIds.update { it + id }
+        _messages.trySend(
+            UiMessage("\"${pwv.product.name}\" deleted", undoLabel = "UNDO", undoProductId = id)
+        )
 
-        pendingDeleteJob = applicationScope.launch {
+        pendingDeleteJobs[id] = applicationScope.launch {
             delay(UNDO_WINDOW_MS)
-            commitDelete(pwv)
+            commitDelete(id)
         }
     }
 
-    fun undoDelete() {
-        val pwv = pendingDelete ?: return
-        pendingDeleteJob?.cancel()
-        pendingDeleteJob = null
-        pendingDelete = null
-        _hiddenIds.value = _hiddenIds.value - pwv.product.id
+    fun undoDelete(productId: Long?) {
+        val id = productId ?: return
+        pendingDeleteJobs.remove(id)?.cancel()
+        val pwv = pendingDeletes.remove(id) ?: return
+        _hiddenIds.update { it - pwv.product.id }
     }
 
-    private fun flushPendingDelete() {
-        val pwv = pendingDelete ?: return
-        pendingDeleteJob?.cancel()
-        pendingDeleteJob = null
-        applicationScope.launch { commitDelete(pwv) }
-    }
-
-    private suspend fun commitDelete(pwv: ProductWithVariants) {
-        pendingDelete = null
+    private suspend fun commitDelete(id: Long) {
+        // A prior undoDelete() removes the entry — losing that race means don't delete.
+        val pwv = pendingDeletes.remove(id) ?: return
+        pendingDeleteJobs.remove(id)
         runCatching { repository.delete(pwv.product) }
             .onFailure { _messages.trySend(UiMessage("Could not delete \"${pwv.product.name}\"")) }
-        _hiddenIds.value = _hiddenIds.value - pwv.product.id
+        _hiddenIds.update { it - id }
     }
 
     // -----------------------------------------------------------------------

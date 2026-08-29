@@ -144,6 +144,14 @@ class CsvImporter @Inject constructor(
             val variantLabel = fields[AppField.VARIANT_LABEL]?.takeIf { it.isNotBlank() } ?: "Standard"
             val wholesalePrice = fields[AppField.WHOLESALE_PRICE]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
+            if (wholesalePrice != null && wholesalePrice <= 0) {
+                errors += ImportRowError(rowNumber, row, "Wholesale price ($wholesalePrice) must be greater than zero")
+                return@forEachIndexed
+            }
+            if (wholesalePrice != null && wholesalePrice > MAX_PRICE) {
+                errors += ImportRowError(rowNumber, row, "Wholesale price ($wholesalePrice) is too large")
+                return@forEachIndexed
+            }
             val wholesaleMin = fields[AppField.WHOLESALE_MIN]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
             if (wholesaleMin != null && wholesaleMin <= 0) {
