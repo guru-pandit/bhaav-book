@@ -183,3 +183,17 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         }
     }
 }
+
+/**
+ * Schema migration from version 2 → 3.
+ *
+ * What changed:
+ * - Adds `selling_min` REAL and `wholesale_min` REAL columns to `product_variants`.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `product_variants` ADD COLUMN `selling_min` REAL")
+        db.execSQL("ALTER TABLE `product_variants` ADD COLUMN `wholesale_min` REAL")
+    }
+}
+

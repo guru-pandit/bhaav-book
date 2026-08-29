@@ -38,11 +38,19 @@ data class ProductVariant(
     /** Size label shown in the price sheet, e.g. "100 g", "Single", "Box of 12". */
     val variantLabel: String,
 
-    /** Retail selling price — always shown to the customer. */
+    /** Retail selling price (max) — always shown to the customer. */
     val sellingPrice: Double,
 
-    /** Wholesale price — shown only when Settings › Show wholesale price is ON. */
+    /** Retail selling minimum price — optional lower bound of selling price. */
+    @ColumnInfo(name = "selling_min")
+    val sellingMin: Double? = null,
+
+    /** Wholesale price (max) — shown only when Settings › Show wholesale price is ON. */
     val wholesalePrice: Double? = null,
+
+    /** Wholesale minimum price — optional lower bound of wholesale price. */
+    @ColumnInfo(name = "wholesale_min")
+    val wholesaleMin: Double? = null,
 
     /** Purchase cost — shown only when Settings › Show cost price is ON. */
     val costPrice: Double? = null,

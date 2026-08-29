@@ -17,7 +17,7 @@ import com.bhaavbook.app.data.model.ProductVariant
         Brand::class,
         Category::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

@@ -245,7 +245,9 @@ fun ProductEditScreen(
                 showCost = state.showCostPrice,
                 onLabelChange = viewModel::onVariantLabelChange,
                 onSellingPriceChange = viewModel::onVariantSellingPriceChange,
+                onSellingMinChange = viewModel::onVariantSellingMinChange,
                 onWholesalePriceChange = viewModel::onVariantWholesalePriceChange,
+                onWholesaleMinChange = viewModel::onVariantWholesaleMinChange,
                 onCostPriceChange = viewModel::onVariantCostPriceChange,
                 onInStockChange = viewModel::onVariantInStockChange,
                 onQuickFill = viewModel::onVariantLabelChange,
@@ -398,13 +400,13 @@ private fun VariantRow(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                "₹${variant.sellingPrice.toEditableString()}",
+                com.bhaavbook.app.format.formatPriceRange(variant.sellingMin, variant.sellingPrice, "₹"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.primary
             )
             if (showWholesale && variant.wholesalePrice != null) {
                 Text(
-                    "Wholesale ₹${variant.wholesalePrice.toEditableString()}",
+                    "Wholesale ${com.bhaavbook.app.format.formatPriceRange(variant.wholesaleMin, variant.wholesalePrice, "₹")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
@@ -450,7 +452,9 @@ private fun VariantFormSheet(
     showCost: Boolean,
     onLabelChange: (String) -> Unit,
     onSellingPriceChange: (String) -> Unit,
+    onSellingMinChange: (String) -> Unit,
     onWholesalePriceChange: (String) -> Unit,
+    onWholesaleMinChange: (String) -> Unit,
     onCostPriceChange: (String) -> Unit,
     onInStockChange: (Boolean) -> Unit,
     onQuickFill: (String) -> Unit,
@@ -501,9 +505,22 @@ private fun VariantFormSheet(
             )
 
             OutlinedTextField(
+                value = form.sellingMin,
+                onValueChange = onSellingMinChange,
+                label = { Text("Selling min price (₹)") },
+                isError = form.sellingMinError != null,
+                supportingText = form.sellingMinError?.let { { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+            )
+
+            OutlinedTextField(
                 value = form.sellingPrice,
                 onValueChange = onSellingPriceChange,
-                label = { Text("Selling price (₹) *") },
+                label = { Text("Selling max price (₹) *") },
                 isError = form.sellingPriceError != null,
                 supportingText = form.sellingPriceError?.let { { Text(stringResource(it)) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -514,16 +531,30 @@ private fun VariantFormSheet(
             )
 
             AnimatedVisibility(visible = showWholesale) {
-                OutlinedTextField(
-                    value = form.wholesalePrice,
-                    onValueChange = onWholesalePriceChange,
-                    label = { Text("Wholesale price (₹)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = form.wholesaleMin,
+                        onValueChange = onWholesaleMinChange,
+                        label = { Text("Wholesale min price (₹)") },
+                        isError = form.wholesaleMinError != null,
+                        supportingText = form.wholesaleMinError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        )
                     )
-                )
+                    OutlinedTextField(
+                        value = form.wholesalePrice,
+                        onValueChange = onWholesalePriceChange,
+                        label = { Text("Wholesale max price (₹)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        )
+                    )
+                }
             }
 
             AnimatedVisibility(visible = showCost) {

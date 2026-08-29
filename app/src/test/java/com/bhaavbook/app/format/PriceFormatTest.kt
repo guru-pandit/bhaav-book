@@ -93,4 +93,15 @@ class PriceFormatTest {
         assertEquals("1.5", 1.5.toQuantityString())
         assertEquals("500", 500.0.toQuantityString())
     }
+
+    // -----------------------------------------------------------------------
+    // Price range formatting
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun `formatPriceRange formats distinct range and single price correctly`() {
+        assertEquals("₹40 - ₹45", formatPriceRange(40.0, 45.0, "₹"))
+        assertEquals("₹45", formatPriceRange(null, 45.0, "₹"))
+        assertEquals("₹45", formatPriceRange(45.0, 45.0, "₹"))
+    }
 }

@@ -63,7 +63,9 @@ class CsvImporter @Inject constructor(
         data class ParsedVariant(
             val label: String,
             val sellingPrice: Double,
+            val sellingMin: Double?,
             val wholesalePrice: Double?,
+            val wholesaleMin: Double?,
             val costPrice: Double?,
             val inStock: Boolean
         )
@@ -108,6 +110,13 @@ class CsvImporter @Inject constructor(
                 return@forEachIndexed
             }
 
+            val sellingMin = fields[AppField.SELLING_MIN]?.takeIf { it.isNotBlank() }
+                ?.let { parser.parsePrice(it) }
+            if (sellingMin != null && sellingMin > sellingPrice) {
+                errors += ImportRowError(rowNumber, row, "Selling min price ($sellingMin) cannot be greater than selling price ($sellingPrice)")
+                return@forEachIndexed
+            }
+
             // Slug-first brand & category resolution
             val brandSlug = fields[AppField.BRAND_SLUG]
             val brandName = fields[AppField.BRAND]
@@ -128,6 +137,8 @@ class CsvImporter @Inject constructor(
             val variantLabel = fields[AppField.VARIANT_LABEL]?.takeIf { it.isNotBlank() } ?: "Standard"
             val wholesalePrice = fields[AppField.WHOLESALE_PRICE]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
+            val wholesaleMin = fields[AppField.WHOLESALE_MIN]?.takeIf { it.isNotBlank() }
+                ?.let { parser.parsePrice(it) }
             val costPrice = fields[AppField.COST_PRICE]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
             val inStock = parser.parseInStock(fields[AppField.VARIANT_IN_STOCK].orEmpty())
@@ -137,7 +148,9 @@ class CsvImporter @Inject constructor(
             val parsedVariant = ParsedVariant(
                 label = variantLabel,
                 sellingPrice = sellingPrice,
+                sellingMin = sellingMin,
                 wholesalePrice = wholesalePrice,
+                wholesaleMin = wholesaleMin,
                 costPrice = costPrice,
                 inStock = inStock
             )
@@ -195,7 +208,9 @@ class CsvImporter @Inject constructor(
                                 productId = 0L,
                                 variantLabel = v.label,
                                 sellingPrice = v.sellingPrice,
+                                sellingMin = v.sellingMin,
                                 wholesalePrice = v.wholesalePrice,
+                                wholesaleMin = v.wholesaleMin,
                                 costPrice = v.costPrice,
                                 inStock = v.inStock,
                                 createdAt = now,
@@ -223,7 +238,9 @@ class CsvImporter @Inject constructor(
                             productId = productId,
                             variantLabel = v.label,
                             sellingPrice = v.sellingPrice,
+                            sellingMin = v.sellingMin,
                             wholesalePrice = v.wholesalePrice,
+                            wholesaleMin = v.wholesaleMin,
                             costPrice = v.costPrice,
                             inStock = v.inStock,
                             createdAt = now,
@@ -247,7 +264,9 @@ class CsvImporter @Inject constructor(
                             productId = 0L,
                             variantLabel = v.label,
                             sellingPrice = v.sellingPrice,
+                            sellingMin = v.sellingMin,
                             wholesalePrice = v.wholesalePrice,
+                            wholesaleMin = v.wholesaleMin,
                             costPrice = v.costPrice,
                             inStock = v.inStock,
                             createdAt = now,

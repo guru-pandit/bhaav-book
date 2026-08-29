@@ -133,7 +133,7 @@ fun PriceSheet(
 
             // Hero price card
             if (selected != null) {
-                val price = selected.sellingPrice.toPriceString(currencySymbol)
+                val price = com.bhaavbook.app.format.formatPriceRange(selected.sellingMin, selected.sellingPrice, currencySymbol)
                 PriceHero(
                     price = price,
                     packLabel = selected.variantLabel,
@@ -143,13 +143,14 @@ fun PriceSheet(
 
                 // Wholesale price row
                 if (showWholesalePrice && selected.wholesalePrice != null) {
+                    val wholesalePriceStr = com.bhaavbook.app.format.formatPriceRange(selected.wholesaleMin, selected.wholesalePrice, currencySymbol)
                     Spacer(Modifier.height(12.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = colors.secondaryContainer
                     ) {
                         Text(
-                            text = "Wholesale: ${selected.wholesalePrice.toPriceString(currencySymbol)}",
+                            text = "Wholesale: $wholesalePriceStr",
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.onSecondaryContainer,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
