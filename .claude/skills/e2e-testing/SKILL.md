@@ -32,7 +32,7 @@ app/src/androidTest/java/com/bhaavbook/app/
 ├── ProductEditDeleteFlowTest.kt         # edit a variant's price; delete with undo
 ├── ProductSearchFilterSortFlowTest.kt   # search, filter chips (category/in-stock), sort sheet
 ├── ManageBrandsFlowTest.kt              # add/edit(+slug warning)/delete a brand; add a category
-├── SettingsFlowTest.kt                  # show-cost-price toggle, currency symbol
+├── SettingsFlowTest.kt                  # currency symbol
 └── CsvImportFlowTest.kt                 # full import flow + a slug-conflict warning row
 ```
 

@@ -20,7 +20,7 @@ data class ProductWithVariants(
 ) {
     /** Lowest retail selling price across all variants. Null when there are no variants. */
     val minSellingPrice: Double?
-        get() = variants.minOfOrNull { it.sellingPrice }
+        get() = variants.minOfOrNull { it.sellingMin ?: it.sellingPrice }
 
     /** True if at least one variant is in stock. */
     val isAnyInStock: Boolean
@@ -28,17 +28,20 @@ data class ProductWithVariants(
 
     /**
      * Price label for the product list row.
-     * Single variant → "₹XX"; multiple variants → "from ₹XX" (using the symbol
-     * supplied by the caller to keep currency formatting in the UI layer).
+     * Single variant → "₹XX" or "₹XX - ₹YY"; multiple variants → "from ₹XX".
      */
     fun priceLabel(currencySymbol: String): String {
+        if (variants.isEmpty()) return ""
+        if (variants.size == 1) {
+            val v = variants.first()
+            return com.bhaavbook.app.format.formatPriceRange(v.sellingMin, v.sellingPrice, currencySymbol)
+        }
         val min = minSellingPrice ?: return ""
         val formatted = if (min == min.toLong().toDouble()) {
             "${min.toLong()}"
         } else {
             "$min"
         }
-        return if (variants.size == 1) "$currencySymbol$formatted"
-        else "from $currencySymbol$formatted"
+        return "from $currencySymbol$formatted"
     }
 }

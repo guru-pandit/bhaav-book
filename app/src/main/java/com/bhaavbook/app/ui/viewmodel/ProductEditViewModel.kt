@@ -26,11 +26,15 @@ data class VariantFormState(
     val id: Long = 0L,           // 0 = new; non-zero = editing existing
     val label: String = "",
     val sellingPrice: String = "",
+    val sellingMin: String = "",
     val wholesalePrice: String = "",
-    val costPrice: String = "",
+    val wholesaleMin: String = "",
     val inStock: Boolean = true,
     @StringRes val labelError: Int? = null,
     @StringRes val sellingPriceError: Int? = null,
+    val sellingMinError: String? = null,
+    val wholesalePriceError: String? = null,
+    val wholesaleMinError: String? = null,
     val duplicateLabelError: String? = null
 )
 
@@ -58,7 +62,6 @@ data class ProductEditUiState(
     val availableCategories: List<String> = emptyList(),
     val availableBrands: List<String> = emptyList(),
 
-    val showCostPrice: Boolean = false,
     val showWholesalePrice: Boolean = false
 )
 
@@ -95,7 +98,6 @@ class ProductEditViewModel @Inject constructor(
         current.copy(
             availableCategories = dbCategories,
             availableBrands = dbBrands,
-            showCostPrice = settings.showCostPrice,
             showWholesalePrice = settings.showWholesalePrice
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _state.value)
@@ -146,6 +148,15 @@ class ProductEditViewModel @Inject constructor(
 
     fun clearSaveError() = update { it.copy(saveError = null) }
 
+    /**
+     * Dismisses the duplicate-product warning without saving. Also resets the
+     * acknowledgement so a later edit is re-checked against the DB.
+     */
+    fun dismissDuplicateWarning() {
+        duplicateAcknowledged = false
+        update { it.copy(duplicateWarning = null) }
+    }
+
     // -----------------------------------------------------------------------
     // Variant form management
     // -----------------------------------------------------------------------
@@ -165,8 +176,9 @@ class ProductEditViewModel @Inject constructor(
                     id = variant.id,
                     label = variant.variantLabel,
                     sellingPrice = variant.sellingPrice.toEditableString(),
+                    sellingMin = variant.sellingMin?.toEditableString().orEmpty(),
                     wholesalePrice = variant.wholesalePrice?.toEditableString().orEmpty(),
-                    costPrice = variant.costPrice?.toEditableString().orEmpty(),
+                    wholesaleMin = variant.wholesaleMin?.toEditableString().orEmpty(),
                     inStock = variant.inStock
                 )
             )
@@ -183,12 +195,16 @@ class ProductEditViewModel @Inject constructor(
         it.copy(sellingPrice = value.filterPriceInput(), sellingPriceError = null)
     }
 
-    fun onVariantWholesalePriceChange(value: String) = updateForm {
-        it.copy(wholesalePrice = value.filterPriceInput())
+    fun onVariantSellingMinChange(value: String) = updateForm {
+        it.copy(sellingMin = value.filterPriceInput(), sellingMinError = null)
     }
 
-    fun onVariantCostPriceChange(value: String) = updateForm {
-        it.copy(costPrice = value.filterPriceInput())
+    fun onVariantWholesalePriceChange(value: String) = updateForm {
+        it.copy(wholesalePrice = value.filterPriceInput(), wholesalePriceError = null)
+    }
+
+    fun onVariantWholesaleMinChange(value: String) = updateForm {
+        it.copy(wholesaleMin = value.filterPriceInput(), wholesaleMinError = null)
     }
 
     fun onVariantInStockChange(value: Boolean) = updateForm { it.copy(inStock = value) }
@@ -198,12 +214,35 @@ class ProductEditViewModel @Inject constructor(
         val form = _state.value.variantForm ?: return
         val label = form.label.trim()
         val price = form.sellingPrice.trim().toDoubleOrNull()
+        val sellingMinVal = form.sellingMin.trim().toDoubleOrNull()
+        val wholesalePriceVal = form.wholesalePrice.trim().toDoubleOrNull()
+        val wholesaleMinVal = form.wholesaleMin.trim().toDoubleOrNull()
 
         val labelError = if (label.isEmpty()) R.string.error_name_required else null
         val priceError = when {
             price == null -> R.string.error_price_required
             price <= 0 -> R.string.error_price_negative
             price > MAX_PRICE -> R.string.error_price_too_large
+            else -> null
+        }
+
+        val sellingMinError = when {
+            sellingMinVal != null && price != null && sellingMinVal > price -> "Selling min price cannot be greater than max price"
+            sellingMinVal != null && sellingMinVal <= 0 -> "Selling min price must be greater than zero"
+            sellingMinVal != null && sellingMinVal > MAX_PRICE -> "Selling min price is too large"
+            else -> null
+        }
+
+        val wholesalePriceError = when {
+            wholesalePriceVal != null && wholesalePriceVal <= 0 -> "Wholesale max price must be greater than zero"
+            wholesalePriceVal != null && wholesalePriceVal > MAX_PRICE -> "Wholesale max price is too large"
+            else -> null
+        }
+
+        val wholesaleMinError = when {
+            wholesaleMinVal != null && wholesalePriceVal != null && wholesaleMinVal > wholesalePriceVal -> "Wholesale min price cannot be greater than max price"
+            wholesaleMinVal != null && wholesaleMinVal <= 0 -> "Wholesale min price must be greater than zero"
+            wholesaleMinVal != null && wholesaleMinVal > MAX_PRICE -> "Wholesale min price is too large"
             else -> null
         }
 
@@ -215,11 +254,16 @@ class ProductEditViewModel @Inject constructor(
             "A variant labelled \"$label\" already exists"
         } else null
 
-        if (labelError != null || priceError != null || duplicateLabel != null) {
+        if (labelError != null || priceError != null || sellingMinError != null ||
+            wholesalePriceError != null || wholesaleMinError != null || duplicateLabel != null
+        ) {
             updateForm {
                 it.copy(
                     labelError = labelError,
                     sellingPriceError = priceError,
+                    sellingMinError = sellingMinError,
+                    wholesalePriceError = wholesalePriceError,
+                    wholesaleMinError = wholesaleMinError,
                     duplicateLabelError = duplicateLabel
                 )
             }
@@ -234,8 +278,9 @@ class ProductEditViewModel @Inject constructor(
             productId = productId,
             variantLabel = label,
             sellingPrice = price,
-            wholesalePrice = form.wholesalePrice.trim().toDoubleOrNull(),
-            costPrice = form.costPrice.trim().toDoubleOrNull(),
+            sellingMin = sellingMinVal,
+            wholesalePrice = wholesalePriceVal,
+            wholesaleMin = wholesaleMinVal,
             inStock = form.inStock,
             createdAt = if (form.id == 0L) now else
                 _state.value.variants.find { it.id == form.id }?.createdAt ?: now,

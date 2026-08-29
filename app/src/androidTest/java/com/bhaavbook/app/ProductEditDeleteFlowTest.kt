@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -73,13 +74,55 @@ class ProductEditDeleteFlowTest {
         // The row-level edit control is an icon button — reachable only by its
         // contentDescription, not by onNodeWithText.
         composeRule.onNodeWithContentDescription("Edit variant").performClick()
-        composeRule.onNodeWithText("Selling price (₹) *").performTextClearance()
-        composeRule.onNodeWithText("Selling price (₹) *").performTextInput("30")
+        composeRule.onNodeWithText("Selling max price (₹) *").performTextClearance()
+        composeRule.onNodeWithText("Selling max price (₹) *").performTextInput("30")
         composeRule.onNodeWithText("Update").performClick()
 
         composeRule.onNodeWithText("Save").performClick()
 
         composeRule.onNodeWithContentDescription("Tata — Tata Salt, ₹30", substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun enteringSellingMinPrice_showsRangeInPriceSheet() {
+        seedTataSalt()
+
+        composeRule.onNodeWithContentDescription("Tata — Tata Salt, ₹25", substring = true)
+            .performClick()
+        composeRule.onNodeWithText("Edit").performClick()
+
+        composeRule.onNodeWithContentDescription("Edit variant").performClick()
+        composeRule.onNodeWithText("Selling min price (₹)").performTextInput("20")
+        composeRule.onNodeWithText("Update").performClick()
+
+        composeRule.onNodeWithText("Save").performClick()
+
+        // The list row and the price sheet both use formatPriceRange, so the
+        // same "min - max" text should now appear in both places.
+        composeRule.onNodeWithContentDescription("Tata — Tata Salt, ₹20 - ₹25", substring = true)
+            .performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("₹20 - ₹25", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun sellingMinGreaterThanMaxPrice_blocksSavingTheVariant() {
+        seedTataSalt()
+
+        composeRule.onNodeWithContentDescription("Tata — Tata Salt, ₹25", substring = true)
+            .performClick()
+        composeRule.onNodeWithText("Edit").performClick()
+
+        composeRule.onNodeWithContentDescription("Edit variant").performClick()
+        composeRule.onNodeWithText("Selling min price (₹)").performTextInput("999")
+        composeRule.onNodeWithText("Update").performClick()
+
+        // The sheet stays open (ProductEditViewModel.saveVariantForm returns
+        // early on a validation error rather than committing) and shows the
+        // field-level error instead.
+        composeRule.onNodeWithText("Selling min price cannot be greater than max price")
             .assertIsDisplayed()
     }
 

@@ -33,24 +33,31 @@ enum class AppField(val displayName: String, val csvHeaders: List<String>) {
         )
     ),
     SELLING_PRICE(
-        "Selling Price *",
+        "Selling Price (Max) *",
         listOf(
             "selling_price", "selling price", "price", "mrp", "rate",
-            "sale price", "sp", "sell price", "retail price"
+            "sale price", "sp", "sell price", "retail price", "selling_max", "selling price max"
+        )
+    ),
+    SELLING_MIN(
+        "Selling Min Price",
+        listOf(
+            "selling_min", "selling min", "selling_price_min", "selling price min",
+            "sp_min", "min_selling_price", "min selling price"
         )
     ),
     WHOLESALE_PRICE(
-        "Wholesale Price",
+        "Wholesale Price (Max)",
         listOf(
             "wholesale_price", "wholesale price", "wholesale", "trade_price",
-            "trade price", "wp", "bulk_price"
+            "trade price", "wp", "bulk_price", "wholesale_max", "wholesale price max"
         )
     ),
-    COST_PRICE(
-        "Cost Price",
+    WHOLESALE_MIN(
+        "Wholesale Min Price",
         listOf(
-            "cost_price", "cost price", "purchase price", "buy price", "cp",
-            "cost", "purchase"
+            "wholesale_min", "wholesale min", "wholesale_price_min", "wholesale price min",
+            "wp_min", "min_wholesale_price", "min wholesale price"
         )
     ),
     VARIANT_IN_STOCK(

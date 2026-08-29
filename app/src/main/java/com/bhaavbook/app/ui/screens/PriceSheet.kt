@@ -43,7 +43,6 @@ import com.bhaavbook.app.R
 import com.bhaavbook.app.data.model.ProductVariant
 import com.bhaavbook.app.data.model.ProductWithVariants
 import com.bhaavbook.app.data.settings.PriceFontSize
-import com.bhaavbook.app.format.toPriceString
 import com.bhaavbook.app.ui.theme.TabularFigures
 
 /**
@@ -64,7 +63,6 @@ fun PriceSheet(
     pwv: ProductWithVariants,
     currencySymbol: String,
     priceFontSize: PriceFontSize,
-    showCostPrice: Boolean,
     showWholesalePrice: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -133,7 +131,7 @@ fun PriceSheet(
 
             // Hero price card
             if (selected != null) {
-                val price = selected.sellingPrice.toPriceString(currencySymbol)
+                val price = com.bhaavbook.app.format.formatPriceRange(selected.sellingMin, selected.sellingPrice, currencySymbol)
                 PriceHero(
                     price = price,
                     packLabel = selected.variantLabel,
@@ -143,34 +141,16 @@ fun PriceSheet(
 
                 // Wholesale price row
                 if (showWholesalePrice && selected.wholesalePrice != null) {
+                    val wholesalePriceStr = com.bhaavbook.app.format.formatPriceRange(selected.wholesaleMin, selected.wholesalePrice, currencySymbol)
                     Spacer(Modifier.height(12.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = colors.secondaryContainer
                     ) {
                         Text(
-                            text = "Wholesale: ${selected.wholesalePrice.toPriceString(currencySymbol)}",
+                            text = "Wholesale: $wholesalePriceStr",
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                        )
-                    }
-                }
-
-                // Cost price row
-                if (showCostPrice && selected.costPrice != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = colors.tertiaryContainer
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.cost_price_label,
-                                selected.costPrice.toPriceString(currencySymbol)
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = colors.onTertiaryContainer,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                         )
                     }

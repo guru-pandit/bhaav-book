@@ -115,7 +115,7 @@ interface ProductDao {
         """
         SELECT p.* FROM products p
         LEFT JOIN (
-            SELECT productId, MIN(sellingPrice) AS min_price
+            SELECT productId, MIN(COALESCE(selling_min, sellingPrice)) AS min_price
             FROM product_variants
             GROUP BY productId
         ) v ON p.id = v.productId
@@ -129,7 +129,7 @@ interface ProductDao {
         """
         SELECT p.* FROM products p
         LEFT JOIN (
-            SELECT productId, MIN(sellingPrice) AS min_price
+            SELECT productId, MIN(COALESCE(selling_min, sellingPrice)) AS min_price
             FROM product_variants
             GROUP BY productId
         ) v ON p.id = v.productId

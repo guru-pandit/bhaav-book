@@ -39,6 +39,18 @@ fun Double.toPriceString(): String {
 fun Double.toPriceString(currencySymbol: String): String = currencySymbol + toPriceString()
 
 /**
+ * Formats a price range: `"₹40 - ₹45"` if min price is provided and distinct from max,
+ * or `"₹45"` if min is null or equal to max price.
+ */
+fun formatPriceRange(min: Double?, max: Double, currencySymbol: String): String =
+    if (min != null && min < max) {
+        "${min.toPriceString(currencySymbol)} - ${max.toPriceString(currencySymbol)}"
+    } else {
+        max.toPriceString(currencySymbol)
+    }
+
+
+/**
  * Groups the digits of a non-negative integer string Indian-style: the last
  * three digits stay together, everything above them is split into pairs.
  */

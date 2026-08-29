@@ -98,7 +98,7 @@ fun ProductEditScreen(
     // Duplicate warning dialog
     if (state.duplicateWarning != null) {
         AlertDialog(
-            onDismissRequest = { viewModel.clearSaveError() },
+            onDismissRequest = { viewModel.dismissDuplicateWarning() },
             title = { Text("Duplicate product") },
             text = {
                 Text(
@@ -110,7 +110,7 @@ fun ProductEditScreen(
                 Button(onClick = viewModel::save) { Text("Save anyway") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.clearSaveError() }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.dismissDuplicateWarning() }) { Text("Cancel") }
             }
         )
     }
@@ -213,7 +213,6 @@ fun ProductEditScreen(
                             VariantRow(
                                 variant = variant,
                                 showWholesale = state.showWholesalePrice,
-                                showCost = state.showCostPrice,
                                 onEdit = { viewModel.openEditVariantForm(variant) },
                                 onDelete = { viewModel.deleteVariant(variant) }
                             )
@@ -242,11 +241,11 @@ fun ProductEditScreen(
             VariantFormSheet(
                 form = state.variantForm!!,
                 showWholesale = state.showWholesalePrice,
-                showCost = state.showCostPrice,
                 onLabelChange = viewModel::onVariantLabelChange,
                 onSellingPriceChange = viewModel::onVariantSellingPriceChange,
+                onSellingMinChange = viewModel::onVariantSellingMinChange,
                 onWholesalePriceChange = viewModel::onVariantWholesalePriceChange,
-                onCostPriceChange = viewModel::onVariantCostPriceChange,
+                onWholesaleMinChange = viewModel::onVariantWholesaleMinChange,
                 onInStockChange = viewModel::onVariantInStockChange,
                 onQuickFill = viewModel::onVariantLabelChange,
                 onSave = viewModel::saveVariantForm,
@@ -380,7 +379,6 @@ private fun SelectorSheet(
 private fun VariantRow(
     variant: ProductVariant,
     showWholesale: Boolean,
-    showCost: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -398,20 +396,13 @@ private fun VariantRow(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                "₹${variant.sellingPrice.toEditableString()}",
+                com.bhaavbook.app.format.formatPriceRange(variant.sellingMin, variant.sellingPrice, "₹"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.primary
             )
             if (showWholesale && variant.wholesalePrice != null) {
                 Text(
-                    "Wholesale ₹${variant.wholesalePrice.toEditableString()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant
-                )
-            }
-            if (showCost && variant.costPrice != null) {
-                Text(
-                    "Cost ₹${variant.costPrice.toEditableString()}",
+                    "Wholesale ${com.bhaavbook.app.format.formatPriceRange(variant.wholesaleMin, variant.wholesalePrice, "₹")}",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
@@ -447,11 +438,11 @@ private fun VariantRow(
 private fun VariantFormSheet(
     form: VariantFormState,
     showWholesale: Boolean,
-    showCost: Boolean,
     onLabelChange: (String) -> Unit,
     onSellingPriceChange: (String) -> Unit,
+    onSellingMinChange: (String) -> Unit,
     onWholesalePriceChange: (String) -> Unit,
-    onCostPriceChange: (String) -> Unit,
+    onWholesaleMinChange: (String) -> Unit,
     onInStockChange: (Boolean) -> Unit,
     onQuickFill: (String) -> Unit,
     onSave: () -> Unit,
@@ -503,7 +494,7 @@ private fun VariantFormSheet(
             OutlinedTextField(
                 value = form.sellingPrice,
                 onValueChange = onSellingPriceChange,
-                label = { Text("Selling price (₹) *") },
+                label = { Text("Selling max price (₹) *") },
                 isError = form.sellingPriceError != null,
                 supportingText = form.sellingPriceError?.let { { Text(stringResource(it)) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -513,30 +504,46 @@ private fun VariantFormSheet(
                 )
             )
 
-            AnimatedVisibility(visible = showWholesale) {
-                OutlinedTextField(
-                    value = form.wholesalePrice,
-                    onValueChange = onWholesalePriceChange,
-                    label = { Text("Wholesale price (₹)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    )
+            OutlinedTextField(
+                value = form.sellingMin,
+                onValueChange = onSellingMinChange,
+                label = { Text("Selling min price (₹)") },
+                isError = form.sellingMinError != null,
+                supportingText = form.sellingMinError?.let { { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                 )
-            }
+            )
 
-            AnimatedVisibility(visible = showCost) {
-                OutlinedTextField(
-                    value = form.costPrice,
-                    onValueChange = onCostPriceChange,
-                    label = { Text("Cost price (₹)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+            AnimatedVisibility(visible = showWholesale) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = form.wholesalePrice,
+                        onValueChange = onWholesalePriceChange,
+                        label = { Text("Wholesale max price (₹)") },
+                        isError = form.wholesalePriceError != null,
+                        supportingText = form.wholesalePriceError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        )
                     )
-                )
+                    OutlinedTextField(
+                        value = form.wholesaleMin,
+                        onValueChange = onWholesaleMinChange,
+                        label = { Text("Wholesale min price (₹)") },
+                        isError = form.wholesaleMinError != null,
+                        supportingText = form.wholesaleMinError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        )
+                    )
+                }
             }
 
             Row(
@@ -574,6 +581,3 @@ private fun SectionLabel(text: String) {
         modifier = Modifier.padding(top = 4.dp)
     )
 }
-
-private fun Double.toEditableString(): String =
-    if (this == toLong().toDouble()) toLong().toString() else toString()

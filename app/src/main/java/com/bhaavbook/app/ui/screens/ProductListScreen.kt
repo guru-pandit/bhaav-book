@@ -159,7 +159,7 @@ fun ProductListScreen(
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed && message.undoLabel != null) {
-                viewModel.undoDelete()
+                viewModel.undoDelete(message.undoProductId)
             }
         }
     }
@@ -270,7 +270,6 @@ fun ProductListScreen(
             pwv = pwv,
             currencySymbol = uiState.settings.currencySymbol,
             priceFontSize = uiState.settings.priceFontSize,
-            showCostPrice = uiState.settings.showCostPrice,
             showWholesalePrice = uiState.settings.showWholesalePrice,
             onEdit = {
                 openProduct = null

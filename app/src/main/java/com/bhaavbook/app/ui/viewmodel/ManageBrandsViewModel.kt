@@ -138,36 +138,60 @@ class ManageBrandsViewModel @Inject constructor(
             return
         }
 
-        // Warn if changing existing slug
-        if (form.id != 0L && form.originalSlug.isNotEmpty() &&
-            slug != form.originalSlug && !form.showSlugWarning
-        ) {
-            _uiState.value = _uiState.value.copy(
-                formState = form.copy(showSlugWarning = true)
-            )
-            return
-        }
+        val currentTab = _uiState.value.activeTab
 
         viewModelScope.launch {
-            val currentTab = _uiState.value.activeTab
-            if (currentTab == ManageTab.BRANDS) {
-                if (form.id == 0L) {
-                    brandRepository.save(name, customSlug = slug.ifEmpty { null })
-                } else {
-                    brandRepository.update(
-                        Brand(id = form.id, name = name, slug = slug, createdAt = form.originalCreatedAt)
-                    )
-                }
+            // Reject a name that already belongs to another item — the `name`
+            // column is uniquely indexed, so writing a duplicate throws
+            // SQLiteConstraintException and (with no handler here) crashes.
+            val clashId = if (currentTab == ManageTab.BRANDS) {
+                brandRepository.getByName(name)?.id
             } else {
-                if (form.id == 0L) {
-                    categoryRepository.save(name, customSlug = slug.ifEmpty { null })
+                categoryRepository.getByName(name)?.id
+            }
+            if (clashId != null && clashId != form.id) {
+                val what = if (currentTab == ManageTab.BRANDS) "brand" else "category"
+                _uiState.value = _uiState.value.copy(
+                    formState = form.copy(nameError = "A $what named \"$name\" already exists")
+                )
+                return@launch
+            }
+
+            // Warn if changing an existing slug
+            if (form.id != 0L && form.originalSlug.isNotEmpty() &&
+                slug != form.originalSlug && !form.showSlugWarning
+            ) {
+                _uiState.value = _uiState.value.copy(
+                    formState = form.copy(showSlugWarning = true)
+                )
+                return@launch
+            }
+
+            val result = runCatching {
+                if (currentTab == ManageTab.BRANDS) {
+                    if (form.id == 0L) {
+                        brandRepository.save(name, customSlug = slug.ifEmpty { null })
+                    } else {
+                        brandRepository.update(
+                            Brand(id = form.id, name = name, slug = slug, createdAt = form.originalCreatedAt)
+                        )
+                    }
                 } else {
-                    categoryRepository.update(
-                        Category(id = form.id, name = name, slug = slug, createdAt = form.originalCreatedAt)
-                    )
+                    if (form.id == 0L) {
+                        categoryRepository.save(name, customSlug = slug.ifEmpty { null })
+                    } else {
+                        categoryRepository.update(
+                            Category(id = form.id, name = name, slug = slug, createdAt = form.originalCreatedAt)
+                        )
+                    }
                 }
             }
-            _uiState.value = _uiState.value.copy(formState = null)
+
+            _uiState.value = if (result.isSuccess) {
+                _uiState.value.copy(formState = null)
+            } else {
+                _uiState.value.copy(message = "Could not save — please try a different name or slug")
+            }
         }
     }
 

@@ -47,7 +47,7 @@ class CsvImporterTest {
     @Test
     fun `import single row parses name and price and commits product`() = runTest {
         val rows = listOf(
-            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "40", "38", "yes", "Fast moving")
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "40", "40", "35", "yes", "Fast moving")
         )
         val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
 
@@ -61,8 +61,8 @@ class CsvImporterTest {
     @Test
     fun `import multi-variant rows groups variants under same product`() = runTest {
         val rows = listOf(
-            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "", "yes", ""),
-            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "250 g", "100", "", "", "yes", "")
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "", "", "yes", ""),
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "250 g", "100", "", "", "", "yes", "")
         )
         val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
 
@@ -84,7 +84,7 @@ class CsvImporterTest {
     @Test
     fun `import missing name records error row`() = runTest {
         val rows = listOf(
-            listOf("", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "", "yes", "")
+            listOf("", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "", "", "yes", "")
         )
         val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
 
@@ -99,7 +99,7 @@ class CsvImporterTest {
     fun `import invalid price records error row`() = runTest {
         coEvery { parser.parsePrice("invalid") } returns null
         val rows = listOf(
-            listOf("Agarbatti Chandan", "", "Zed Black", "", "Agarbatti", "100 g", "invalid", "", "", "yes", "")
+            listOf("Agarbatti Chandan", "", "Zed Black", "", "Agarbatti", "100 g", "invalid", "", "", "", "yes", "")
         )
         val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
 
@@ -116,7 +116,7 @@ class CsvImporterTest {
         coEvery { dao.getByBrandAndName("Agarbatti Chandan", "Zed Black") } returns existingProduct
 
         val rows = listOf(
-            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "", "yes", "")
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "", "", "yes", "")
         )
         val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
 
@@ -127,6 +127,62 @@ class CsvImporterTest {
     }
 
     @Test
+    fun `import selling min greater than selling price records error row`() = runTest {
+        val rows = listOf(
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "50", "", "", "yes", "")
+        )
+        val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
+
+        val result = importer.import(rows, mapping, DuplicateStrategy.ADD_ANYWAY)
+
+        assertEquals(0, result.importedCount)
+        assertEquals(1, result.errors.size)
+        assertTrue(result.errors.first().reason.contains("Selling min price"))
+    }
+
+    @Test
+    fun `import negative selling min records error row`() = runTest {
+        val rows = listOf(
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "-5", "", "", "yes", "")
+        )
+        val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
+
+        val result = importer.import(rows, mapping, DuplicateStrategy.ADD_ANYWAY)
+
+        assertEquals(0, result.importedCount)
+        assertEquals(1, result.errors.size)
+        assertTrue(result.errors.first().reason.contains("greater than zero"))
+    }
+
+    @Test
+    fun `import wholesale min greater than wholesale price records error row`() = runTest {
+        val rows = listOf(
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "40", "42", "yes", "")
+        )
+        val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
+
+        val result = importer.import(rows, mapping, DuplicateStrategy.ADD_ANYWAY)
+
+        assertEquals(0, result.importedCount)
+        assertEquals(1, result.errors.size)
+        assertTrue(result.errors.first().reason.contains("Wholesale min price"))
+    }
+
+    @Test
+    fun `import negative wholesale min records error row`() = runTest {
+        val rows = listOf(
+            listOf("Agarbatti Chandan", "zed-black", "Zed Black", "agarbatti", "Agarbatti", "100 g", "45", "", "40", "-5", "yes", "")
+        )
+        val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
+
+        val result = importer.import(rows, mapping, DuplicateStrategy.ADD_ANYWAY)
+
+        assertEquals(0, result.importedCount)
+        assertEquals(1, result.errors.size)
+        assertTrue(result.errors.first().reason.contains("greater than zero"))
+    }
+
+    @Test
     fun `import with slug conflict records warning in error list`() = runTest {
         coEvery { brandRepository.resolveFromCsv("zed-black", "Different Name") } returns BrandResolution(
             Brand(name = "Zed Black", slug = "zed-black"),
@@ -134,7 +190,7 @@ class CsvImporterTest {
         )
 
         val rows = listOf(
-            listOf("Agarbatti Chandan", "zed-black", "Different Name", "", "", "100 g", "45", "", "", "yes", "")
+            listOf("Agarbatti Chandan", "zed-black", "Different Name", "", "", "100 g", "45", "", "", "", "yes", "")
         )
         val mapping = ColumnMapping.autoGuess(CsvExporter.CSV_HEADERS.toList())
 
