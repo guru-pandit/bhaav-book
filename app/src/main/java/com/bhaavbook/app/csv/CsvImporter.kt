@@ -112,6 +112,14 @@ class CsvImporter @Inject constructor(
 
             val sellingMin = fields[AppField.SELLING_MIN]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
+            if (sellingMin != null && sellingMin <= 0) {
+                errors += ImportRowError(rowNumber, row, "Selling min price ($sellingMin) must be greater than zero")
+                return@forEachIndexed
+            }
+            if (sellingMin != null && sellingMin > MAX_PRICE) {
+                errors += ImportRowError(rowNumber, row, "Selling min price ($sellingMin) is too large")
+                return@forEachIndexed
+            }
             if (sellingMin != null && sellingMin > sellingPrice) {
                 errors += ImportRowError(rowNumber, row, "Selling min price ($sellingMin) cannot be greater than selling price ($sellingPrice)")
                 return@forEachIndexed
@@ -139,6 +147,18 @@ class CsvImporter @Inject constructor(
                 ?.let { parser.parsePrice(it) }
             val wholesaleMin = fields[AppField.WHOLESALE_MIN]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
+            if (wholesaleMin != null && wholesaleMin <= 0) {
+                errors += ImportRowError(rowNumber, row, "Wholesale min price ($wholesaleMin) must be greater than zero")
+                return@forEachIndexed
+            }
+            if (wholesaleMin != null && wholesaleMin > MAX_PRICE) {
+                errors += ImportRowError(rowNumber, row, "Wholesale min price ($wholesaleMin) is too large")
+                return@forEachIndexed
+            }
+            if (wholesaleMin != null && wholesalePrice != null && wholesaleMin > wholesalePrice) {
+                errors += ImportRowError(rowNumber, row, "Wholesale min price ($wholesaleMin) cannot be greater than wholesale price ($wholesalePrice)")
+                return@forEachIndexed
+            }
             val costPrice = fields[AppField.COST_PRICE]?.takeIf { it.isNotBlank() }
                 ?.let { parser.parsePrice(it) }
             val inStock = parser.parseInStock(fields[AppField.VARIANT_IN_STOCK].orEmpty())
