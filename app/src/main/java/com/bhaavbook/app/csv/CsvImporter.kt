@@ -66,6 +66,7 @@ class CsvImporter @Inject constructor(
             val sellingMin: Double?,
             val wholesalePrice: Double?,
             val wholesaleMin: Double?,
+            val costPrice: Double?,
             val inStock: Boolean
         )
 
@@ -166,6 +167,17 @@ class CsvImporter @Inject constructor(
                 errors += ImportRowError(rowNumber, row, "Wholesale min price ($wholesaleMin) cannot be greater than wholesale price ($wholesalePrice)")
                 return@forEachIndexed
             }
+            val costPrice = fields[AppField.COST_PRICE]?.takeIf { it.isNotBlank() }
+                ?.let { parser.parsePrice(it) }
+            if (costPrice != null && costPrice <= 0) {
+                errors += ImportRowError(rowNumber, row, "Cost price ($costPrice) must be greater than zero")
+                return@forEachIndexed
+            }
+            if (costPrice != null && costPrice > MAX_PRICE) {
+                errors += ImportRowError(rowNumber, row, "Cost price ($costPrice) is too large")
+                return@forEachIndexed
+            }
+
             val inStock = parser.parseInStock(fields[AppField.VARIANT_IN_STOCK].orEmpty())
             val notes = fields[AppField.NOTES]?.takeIf { it.isNotBlank() }
 
@@ -176,6 +188,7 @@ class CsvImporter @Inject constructor(
                 sellingMin = sellingMin,
                 wholesalePrice = wholesalePrice,
                 wholesaleMin = wholesaleMin,
+                costPrice = costPrice,
                 inStock = inStock
             )
 
@@ -235,6 +248,7 @@ class CsvImporter @Inject constructor(
                                 sellingMin = v.sellingMin,
                                 wholesalePrice = v.wholesalePrice,
                                 wholesaleMin = v.wholesaleMin,
+                                costPrice = v.costPrice,
                                 inStock = v.inStock,
                                 createdAt = now,
                                 updatedAt = now
@@ -264,6 +278,7 @@ class CsvImporter @Inject constructor(
                             sellingMin = v.sellingMin,
                             wholesalePrice = v.wholesalePrice,
                             wholesaleMin = v.wholesaleMin,
+                            costPrice = v.costPrice,
                             inStock = v.inStock,
                             createdAt = now,
                             updatedAt = now
@@ -289,6 +304,7 @@ class CsvImporter @Inject constructor(
                             sellingMin = v.sellingMin,
                             wholesalePrice = v.wholesalePrice,
                             wholesaleMin = v.wholesaleMin,
+                            costPrice = v.costPrice,
                             inStock = v.inStock,
                             createdAt = now,
                             updatedAt = now

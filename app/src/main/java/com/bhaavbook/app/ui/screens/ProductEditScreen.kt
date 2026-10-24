@@ -284,6 +284,7 @@ fun ProductEditScreen(
                 onSellingMinChange = viewModel::onVariantSellingMinChange,
                 onWholesalePriceChange = viewModel::onVariantWholesalePriceChange,
                 onWholesaleMinChange = viewModel::onVariantWholesaleMinChange,
+                onCostPriceChange = viewModel::onVariantCostPriceChange,
                 onInStockChange = viewModel::onVariantInStockChange,
                 onQuickFill = viewModel::onVariantLabelChange,
                 onSave = viewModel::saveVariantForm,
@@ -486,6 +487,7 @@ private fun VariantFormSheet(
     onSellingMinChange: (String) -> Unit,
     onWholesalePriceChange: (String) -> Unit,
     onWholesaleMinChange: (String) -> Unit,
+    onCostPriceChange: (String) -> Unit,
     onInStockChange: (Boolean) -> Unit,
     onQuickFill: (String) -> Unit,
     onSave: () -> Unit,
@@ -588,6 +590,22 @@ private fun VariantFormSheet(
                     )
                 }
             }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            OutlinedTextField(
+                value = form.costPrice,
+                onValueChange = onCostPriceChange,
+                label = { Text(stringResource(R.string.field_cost_price)) },
+                placeholder = { Text(stringResource(R.string.field_cost_price_hint)) },
+                isError = form.costPriceError != null,
+                supportingText = form.costPriceError?.let { { Text(it) } },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

@@ -160,6 +160,10 @@
     <string name="field_selling_min_price">Selling min price (optional)</string>
     <string name="field_wholesale_max_price">Wholesale max price (optional)</string>
     <string name="field_wholesale_min_price">Wholesale min price (optional)</string>
+    <string name="field_cost_price">Cost price (internal)</string>
+    <string name="field_cost_price_hint">Purchase / cost price — not shown to customers</string>
+    <string name="error_cost_price_zero">Cost price must be greater than zero</string>
+    <string name="error_cost_price_too_large">Cost price is too large</string>
     <string name="action_add">Add</string>
     <string name="action_update">Update</string>
     <string name="error_selling_min_too_high">Selling min cannot exceed the max price</string>
