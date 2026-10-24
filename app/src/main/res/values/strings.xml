@@ -56,6 +56,9 @@
     <!-- Price sheet -->
     <string name="per_unit">per %1$s</string>
     <string name="note_label">Note: %1$s</string>
+    <string name="wholesale_label">Wholesale: %1$s</string>
+    <string name="cost_label">Cost: %1$s</string>
+    <string name="margin_label">Margin: %1$s (%2$s%%)</string>
     <string name="close">Close</string>
 
     <!-- Product edit -->
