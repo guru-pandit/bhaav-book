@@ -148,11 +148,40 @@ fun PriceSheet(
                         color = colors.secondaryContainer
                     ) {
                         Text(
-                            text = "Wholesale: $wholesalePriceStr",
+                            text = stringResource(R.string.wholesale_label, wholesalePriceStr),
                             style = MaterialTheme.typography.labelLarge,
                             color = colors.onSecondaryContainer,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
                         )
+                    }
+                }
+
+                // Cost price row — internal, always shown when set
+                if (selected.costPrice != null) {
+                    val costStr = com.bhaavbook.app.format.formatPriceRange(null, selected.costPrice, currencySymbol)
+                    val margin = selected.sellingPrice - selected.costPrice
+                    val marginPct = if (selected.costPrice > 0) (margin / selected.costPrice * 100).toInt() else 0
+                    val marginStr = com.bhaavbook.app.format.formatPriceRange(null, margin, currencySymbol)
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = colors.tertiaryContainer
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.cost_label, costStr),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.onTertiaryContainer
+                            )
+                            Text(
+                                text = stringResource(R.string.margin_label, marginStr, marginPct),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onTertiaryContainer
+                            )
+                        }
                     }
                 }
             }

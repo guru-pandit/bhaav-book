@@ -35,6 +35,8 @@ data class VariantFormState(
     val sellingMinError: String? = null,
     val wholesalePriceError: String? = null,
     val wholesaleMinError: String? = null,
+    val costPrice: String = "",
+    val costPriceError: String? = null,
     val duplicateLabelError: String? = null
 )
 
@@ -62,7 +64,9 @@ data class ProductEditUiState(
     val availableCategories: List<String> = emptyList(),
     val availableBrands: List<String> = emptyList(),
 
-    val showWholesalePrice: Boolean = false
+    val showWholesalePrice: Boolean = false,
+    val isDirty: Boolean = false,
+    val currencySymbol: String = "₹"
 )
 
 @HiltViewModel
@@ -98,7 +102,8 @@ class ProductEditViewModel @Inject constructor(
         current.copy(
             availableCategories = dbCategories,
             availableBrands = dbBrands,
-            showWholesalePrice = settings.showWholesalePrice
+            showWholesalePrice = settings.showWholesalePrice,
+            currencySymbol = settings.currencySymbol
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _state.value)
 
@@ -134,17 +139,17 @@ class ProductEditViewModel @Inject constructor(
 
     fun onNameChange(value: String) = update {
         duplicateAcknowledged = false
-        it.copy(name = value, nameError = null, duplicateWarning = null)
+        it.copy(name = value, nameError = null, duplicateWarning = null, isDirty = true)
     }
 
     fun onBrandChange(value: String) = update {
         duplicateAcknowledged = false
-        it.copy(brand = value, duplicateWarning = null)
+        it.copy(brand = value, duplicateWarning = null, isDirty = true)
     }
 
-    fun onCategoryChange(value: String) = update { it.copy(category = value) }
+    fun onCategoryChange(value: String) = update { it.copy(category = value, isDirty = true) }
 
-    fun onNotesChange(value: String) = update { it.copy(notes = value) }
+    fun onNotesChange(value: String) = update { it.copy(notes = value, isDirty = true) }
 
     fun clearSaveError() = update { it.copy(saveError = null) }
 
@@ -179,6 +184,7 @@ class ProductEditViewModel @Inject constructor(
                     sellingMin = variant.sellingMin?.toEditableString().orEmpty(),
                     wholesalePrice = variant.wholesalePrice?.toEditableString().orEmpty(),
                     wholesaleMin = variant.wholesaleMin?.toEditableString().orEmpty(),
+                    costPrice = variant.costPrice?.toEditableString().orEmpty(),
                     inStock = variant.inStock
                 )
             )
@@ -207,6 +213,10 @@ class ProductEditViewModel @Inject constructor(
         it.copy(wholesaleMin = value.filterPriceInput(), wholesaleMinError = null)
     }
 
+    fun onVariantCostPriceChange(value: String) = updateForm {
+        it.copy(costPrice = value.filterPriceInput(), costPriceError = null)
+    }
+
     fun onVariantInStockChange(value: Boolean) = updateForm { it.copy(inStock = value) }
 
     /** Validates and commits the variant form into the variants list. */
@@ -217,6 +227,7 @@ class ProductEditViewModel @Inject constructor(
         val sellingMinVal = form.sellingMin.trim().toDoubleOrNull()
         val wholesalePriceVal = form.wholesalePrice.trim().toDoubleOrNull()
         val wholesaleMinVal = form.wholesaleMin.trim().toDoubleOrNull()
+        val costPriceVal = form.costPrice.trim().takeIf { it.isNotBlank() }?.toDoubleOrNull()
 
         val labelError = if (label.isEmpty()) R.string.error_name_required else null
         val priceError = when {
@@ -246,6 +257,12 @@ class ProductEditViewModel @Inject constructor(
             else -> null
         }
 
+        val costPriceError = when {
+            costPriceVal != null && costPriceVal <= 0 -> "Cost price must be greater than zero"
+            costPriceVal != null && costPriceVal > MAX_PRICE -> "Cost price is too large"
+            else -> null
+        }
+
         // Duplicate label check (within the same product, excluding the variant being edited)
         val existingLabels = _state.value.variants
             .filter { it.id != form.id }
@@ -255,7 +272,8 @@ class ProductEditViewModel @Inject constructor(
         } else null
 
         if (labelError != null || priceError != null || sellingMinError != null ||
-            wholesalePriceError != null || wholesaleMinError != null || duplicateLabel != null
+            wholesalePriceError != null || wholesaleMinError != null || costPriceError != null ||
+            duplicateLabel != null
         ) {
             updateForm {
                 it.copy(
@@ -264,6 +282,7 @@ class ProductEditViewModel @Inject constructor(
                     sellingMinError = sellingMinError,
                     wholesalePriceError = wholesalePriceError,
                     wholesaleMinError = wholesaleMinError,
+                    costPriceError = costPriceError,
                     duplicateLabelError = duplicateLabel
                 )
             }
@@ -281,6 +300,7 @@ class ProductEditViewModel @Inject constructor(
             sellingMin = sellingMinVal,
             wholesalePrice = wholesalePriceVal,
             wholesaleMin = wholesaleMinVal,
+            costPrice = costPriceVal,
             inStock = form.inStock,
             createdAt = if (form.id == 0L) now else
                 _state.value.variants.find { it.id == form.id }?.createdAt ?: now,
@@ -293,12 +313,12 @@ class ProductEditViewModel @Inject constructor(
             } else {
                 state.variants.map { if (it.id == form.id) newVariant else it }
             }
-            state.copy(variants = updated, variantForm = null)
+            state.copy(variants = updated, variantForm = null, isDirty = true)
         }
     }
 
     fun deleteVariant(variant: ProductVariant) = update { state ->
-        state.copy(variants = state.variants.filter { it.id != variant.id })
+        state.copy(variants = state.variants.filter { it.id != variant.id }, isDirty = true)
     }
 
     // -----------------------------------------------------------------------
@@ -360,7 +380,7 @@ class ProductEditViewModel @Inject constructor(
                     repository.upsertVariant(v.copy(productId = savedId))
                 }
             }.onSuccess {
-                update { it.copy(isSaving = false, savedSuccessfully = true) }
+                update { it.copy(isSaving = false, savedSuccessfully = true, isDirty = false) }
             }.onFailure { error ->
                 update { it.copy(isSaving = false, saveError = error.readableMessage()) }
             }

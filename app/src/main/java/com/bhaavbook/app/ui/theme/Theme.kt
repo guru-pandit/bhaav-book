@@ -108,7 +108,7 @@ private val AppShapes = Shapes(
  * Android 15 on, where edge-to-edge is enforced and the bars are transparent.
  */
 @Composable
-fun BhaavBookTheme(
+fun ChaitanyaStoreTheme(
     themeOption: ThemeOption = ThemeOption.SYSTEM,
     content: @Composable () -> Unit
 ) {

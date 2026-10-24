@@ -52,6 +52,10 @@ data class ProductVariant(
     @ColumnInfo(name = "wholesale_min")
     val wholesaleMin: Double? = null,
 
+    /** Purchase / cost price — internal only, never shown on the price sheet. */
+    @ColumnInfo(name = "cost_price")
+    val costPrice: Double? = null,
+
     val inStock: Boolean = true,
 
     @ColumnInfo(name = "created_at")
