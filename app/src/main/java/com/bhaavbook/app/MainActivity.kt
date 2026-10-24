@@ -10,7 +10,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.bhaavbook.app.ui.navigation.NavGraph
-import com.bhaavbook.app.ui.theme.BhaavBookTheme
+import com.bhaavbook.app.ui.theme.ChaitanyaStoreTheme
 import com.bhaavbook.app.ui.viewmodel.SettingsViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -27,7 +27,7 @@ class MainActivity : ComponentActivity() {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settings by settingsViewModel.settings.collectAsStateWithLifecycle()
 
-            BhaavBookTheme(themeOption = settings.theme) {
+            ChaitanyaStoreTheme(themeOption = settings.theme) {
                 NavGraph(navController = rememberNavController())
             }
         }

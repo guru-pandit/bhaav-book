@@ -17,14 +17,14 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.BhaavBook"
+        android:theme="@style/Theme.ChaitanyaStore"
         tools:targetApi="34">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:enableOnBackInvokedCallback="true"
-            android:theme="@style/Theme.BhaavBook.Splash"
+            android:theme="@style/Theme.ChaitanyaStore.Splash"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

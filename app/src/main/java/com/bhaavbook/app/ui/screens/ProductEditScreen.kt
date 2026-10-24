@@ -1,9 +1,9 @@
 package com.bhaavbook.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -48,6 +48,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,13 +66,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bhaavbook.app.R
 import com.bhaavbook.app.data.model.ProductVariant
-import com.bhaavbook.app.format.toPriceString
+import com.bhaavbook.app.format.formatPriceRange
 import com.bhaavbook.app.ui.viewmodel.ProductEditViewModel
 import com.bhaavbook.app.ui.viewmodel.ProductEditUiState
 import com.bhaavbook.app.ui.viewmodel.VariantFormState
 import com.bhaavbook.app.ui.viewmodel.readableMessage
 
-private val QUICK_FILL_LABELS = listOf("1 Dozen", "1/2 Dozen", "100 g", "250 g", "500 g", "1 kg", "500 ml", "1 L", "Single", "Packet", "Box")
+private val QUICK_FILL_LABELS = listOf(
+    "1 Dozen", "1/2 Dozen", "100 g", "250 g", "500 g",
+    "1 kg", "500 ml", "1 L", "Single", "Packet", "Box"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,13 +85,20 @@ fun ProductEditScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showDiscardDialog by remember { mutableStateOf(false) }
 
-    // Navigate away on successful save
+    val safeNavigateUp: () -> Unit = {
+        if (state.isDirty) showDiscardDialog = true else onNavigateUp()
+    }
+
+    BackHandler(enabled = state.isDirty) {
+        showDiscardDialog = true
+    }
+
     LaunchedEffect(state.savedSuccessfully) {
         if (state.savedSuccessfully) onNavigateUp()
     }
 
-    // Show save errors in snackbar
     LaunchedEffect(state.saveError) {
         state.saveError?.let {
             snackbarHostState.showSnackbar(it)
@@ -95,35 +106,61 @@ fun ProductEditScreen(
         }
     }
 
-    // Duplicate warning dialog
-    if (state.duplicateWarning != null) {
+    if (showDiscardDialog) {
         AlertDialog(
-            onDismissRequest = { viewModel.dismissDuplicateWarning() },
-            title = { Text("Duplicate product") },
-            text = {
-                Text(
-                    "\"${state.duplicateWarning}\" already exists. " +
-                        "Save anyway to create a second entry, or go back to edit."
-                )
-            },
+            onDismissRequest = { showDiscardDialog = false },
+            title = { Text(stringResource(R.string.discard_changes_title)) },
+            text = { Text(stringResource(R.string.discard_changes_body)) },
             confirmButton = {
-                Button(onClick = viewModel::save) { Text("Save anyway") }
+                TextButton(onClick = onNavigateUp) {
+                    Text(stringResource(R.string.discard))
+                }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissDuplicateWarning() }) { Text("Cancel") }
+                Button(onClick = { showDiscardDialog = false }) {
+                    Text(stringResource(R.string.keep_editing))
+                }
             }
         )
     }
+
+    if (state.duplicateWarning != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDuplicateWarning() },
+            title = { Text(stringResource(R.string.duplicate_product_title)) },
+            text = {
+                Text(stringResource(R.string.duplicate_product_body, state.duplicateWarning ?: ""))
+            },
+            confirmButton = {
+                Button(onClick = viewModel::save) {
+                    Text(stringResource(R.string.save_anyway))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDuplicateWarning() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    val colors = MaterialTheme.colorScheme
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(if (state.isEditMode) "Edit product" else "Add product")
+                    Text(
+                        if (state.isEditMode) stringResource(R.string.edit_product)
+                        else stringResource(R.string.add_product)
+                    )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = safeNavigateUp) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
                 },
                 actions = {
@@ -132,11 +169,19 @@ fun ProductEditScreen(
                         enabled = !state.isSaving
                     ) {
                         Text(
-                            if (state.isSaving) "Saving…" else "Save",
-                            style = MaterialTheme.typography.labelLarge
+                            if (state.isSaving) stringResource(R.string.saving)
+                            else stringResource(R.string.action_save),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.onSecondary
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.secondary,
+                    titleContentColor = colors.onSecondary,
+                    navigationIconContentColor = colors.onSecondary,
+                    actionIconContentColor = colors.onSecondary
+                )
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -150,15 +195,12 @@ fun ProductEditScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ---------------------------------------------------------------
-            // Product-level fields
-            // ---------------------------------------------------------------
-            SectionLabel("Product details")
+            SectionLabel(stringResource(R.string.section_product_details))
 
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
-                label = { Text("Product name *") },
+                label = { Text(stringResource(R.string.field_name)) },
                 isError = state.nameError != null,
                 supportingText = state.nameError?.let { { Text(stringResource(it)) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -166,7 +208,7 @@ fun ProductEditScreen(
             )
 
             SearchableSelector(
-                label = "Brand",
+                label = stringResource(R.string.field_brand),
                 selected = state.brand,
                 options = state.availableBrands,
                 onSelect = viewModel::onBrandChange,
@@ -174,7 +216,7 @@ fun ProductEditScreen(
             )
 
             SearchableSelector(
-                label = "Category",
+                label = stringResource(R.string.field_category),
                 selected = state.category,
                 options = state.availableCategories,
                 onSelect = viewModel::onCategoryChange,
@@ -184,7 +226,7 @@ fun ProductEditScreen(
             OutlinedTextField(
                 value = state.notes,
                 onValueChange = viewModel::onNotesChange,
-                label = { Text("Notes") },
+                label = { Text(stringResource(R.string.field_notes)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 4
@@ -192,16 +234,13 @@ fun ProductEditScreen(
 
             Spacer(Modifier.height(4.dp))
 
-            // ---------------------------------------------------------------
-            // Variants section
-            // ---------------------------------------------------------------
-            SectionLabel("Variants")
+            SectionLabel(stringResource(R.string.section_variants_heading))
 
             if (state.variants.isEmpty()) {
                 Text(
-                    "No variants yet. Add at least one size and price.",
+                    stringResource(R.string.variants_empty_hint),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = colors.onSurfaceVariant
                 )
             } else {
                 Surface(
@@ -213,6 +252,7 @@ fun ProductEditScreen(
                             VariantRow(
                                 variant = variant,
                                 showWholesale = state.showWholesalePrice,
+                                currencySymbol = state.currencySymbol,
                                 onEdit = { viewModel.openEditVariantForm(variant) },
                                 onDelete = { viewModel.deleteVariant(variant) }
                             )
@@ -228,19 +268,17 @@ fun ProductEditScreen(
             ) {
                 Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Add variant")
+                Text(stringResource(R.string.add_variant))
             }
 
             Spacer(Modifier.height(16.dp))
         }
 
-        // -------------------------------------------------------------------
-        // Variant add/edit bottom sheet
-        // -------------------------------------------------------------------
         if (state.variantForm != null) {
             VariantFormSheet(
                 form = state.variantForm!!,
                 showWholesale = state.showWholesalePrice,
+                currencySymbol = state.currencySymbol,
                 onLabelChange = viewModel::onVariantLabelChange,
                 onSellingPriceChange = viewModel::onVariantSellingPriceChange,
                 onSellingMinChange = viewModel::onVariantSellingMinChange,
@@ -270,7 +308,6 @@ private fun SearchableSelector(
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
 
-    // Display field — tapping opens the sheet
     OutlinedTextField(
         value = selected,
         onValueChange = {},
@@ -279,7 +316,7 @@ private fun SearchableSelector(
         trailingIcon = {
             if (selected.isNotBlank()) {
                 IconButton(onClick = onClear) {
-                    Icon(Icons.Outlined.Clear, contentDescription = "Clear $label")
+                    Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.clear_search))
                 }
             } else {
                 Icon(Icons.Outlined.ChevronRight, contentDescription = null)
@@ -299,7 +336,7 @@ private fun SearchableSelector(
 
     if (sheetOpen) {
         SelectorSheet(
-            title = "Select $label",
+            title = stringResource(R.string.select_label, label),
             options = options,
             selected = selected,
             onSelect = {
@@ -339,7 +376,7 @@ private fun SelectorSheet(
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
-                placeholder = { Text("Search…") },
+                placeholder = { Text(stringResource(R.string.search_placeholder)) },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -351,7 +388,7 @@ private fun SelectorSheet(
                     ListItem(
                         headlineContent = { Text(option) },
                         trailingContent = if (option == selected) {
-                            { Icon(Icons.Outlined.Check, contentDescription = "Selected") }
+                            { Icon(Icons.Outlined.Check, contentDescription = null) }
                         } else null,
                         modifier = Modifier.clickable { onSelect(option) }
                     )
@@ -359,7 +396,7 @@ private fun SelectorSheet(
                 if (filtered.isEmpty()) {
                     item {
                         Text(
-                            "No matches",
+                            stringResource(R.string.no_matches_in_list),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp)
@@ -379,6 +416,7 @@ private fun SelectorSheet(
 private fun VariantRow(
     variant: ProductVariant,
     showWholesale: Boolean,
+    currencySymbol: String,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -396,32 +434,36 @@ private fun VariantRow(
                 fontWeight = FontWeight.Medium
             )
             Text(
-                com.bhaavbook.app.format.formatPriceRange(variant.sellingMin, variant.sellingPrice, "₹"),
+                formatPriceRange(variant.sellingMin, variant.sellingPrice, currencySymbol),
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.primary
             )
             if (showWholesale && variant.wholesalePrice != null) {
                 Text(
-                    "Wholesale ${com.bhaavbook.app.format.formatPriceRange(variant.wholesaleMin, variant.wholesalePrice, "₹")}",
+                    "Wholesale ${formatPriceRange(variant.wholesaleMin, variant.wholesalePrice, currencySymbol)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant
                 )
             }
             if (!variant.inStock) {
                 Text(
-                    "Out of stock",
+                    stringResource(R.string.out_of_stock),
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.error
                 )
             }
         }
         IconButton(onClick = onEdit) {
-            Icon(Icons.Outlined.Edit, contentDescription = "Edit variant", modifier = Modifier.size(18.dp))
+            Icon(
+                Icons.Outlined.Edit,
+                contentDescription = stringResource(R.string.desc_edit_variant),
+                modifier = Modifier.size(18.dp)
+            )
         }
         IconButton(onClick = onDelete) {
             Icon(
                 Icons.Outlined.DeleteOutline,
-                contentDescription = "Delete variant",
+                contentDescription = stringResource(R.string.desc_delete_variant),
                 tint = colors.error,
                 modifier = Modifier.size(18.dp)
             )
@@ -438,6 +480,7 @@ private fun VariantRow(
 private fun VariantFormSheet(
     form: VariantFormState,
     showWholesale: Boolean,
+    currencySymbol: String,
     onLabelChange: (String) -> Unit,
     onSellingPriceChange: (String) -> Unit,
     onSellingMinChange: (String) -> Unit,
@@ -461,11 +504,11 @@ private fun VariantFormSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                if (form.id == 0L) "Add variant" else "Edit variant",
+                if (form.id == 0L) stringResource(R.string.add_variant)
+                else stringResource(R.string.edit_variant),
                 style = MaterialTheme.typography.titleMedium
             )
 
-            // Quick-fill chips
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 QUICK_FILL_LABELS.forEach { chip ->
                     FilterChip(
@@ -479,8 +522,8 @@ private fun VariantFormSheet(
             OutlinedTextField(
                 value = form.label,
                 onValueChange = onLabelChange,
-                label = { Text("Variant label *") },
-                placeholder = { Text("e.g. 100 g, Single, Box of 12") },
+                label = { Text(stringResource(R.string.field_variant_label)) },
+                placeholder = { Text(stringResource(R.string.variant_label_placeholder)) },
                 isError = form.labelError != null || form.duplicateLabelError != null,
                 supportingText = when {
                     form.labelError != null -> { { Text(stringResource(form.labelError)) } }
@@ -494,7 +537,7 @@ private fun VariantFormSheet(
             OutlinedTextField(
                 value = form.sellingPrice,
                 onValueChange = onSellingPriceChange,
-                label = { Text("Selling max price (₹) *") },
+                label = { Text("${stringResource(R.string.field_selling_max_price)} ($currencySymbol)") },
                 isError = form.sellingPriceError != null,
                 supportingText = form.sellingPriceError?.let { { Text(stringResource(it)) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -507,7 +550,7 @@ private fun VariantFormSheet(
             OutlinedTextField(
                 value = form.sellingMin,
                 onValueChange = onSellingMinChange,
-                label = { Text("Selling min price (₹)") },
+                label = { Text("${stringResource(R.string.field_selling_min_price)} ($currencySymbol)") },
                 isError = form.sellingMinError != null,
                 supportingText = form.sellingMinError?.let { { Text(it) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -522,7 +565,7 @@ private fun VariantFormSheet(
                     OutlinedTextField(
                         value = form.wholesalePrice,
                         onValueChange = onWholesalePriceChange,
-                        label = { Text("Wholesale max price (₹)") },
+                        label = { Text("${stringResource(R.string.field_wholesale_max_price)} ($currencySymbol)") },
                         isError = form.wholesalePriceError != null,
                         supportingText = form.wholesalePriceError?.let { { Text(it) } },
                         modifier = Modifier.fillMaxWidth(),
@@ -534,7 +577,7 @@ private fun VariantFormSheet(
                     OutlinedTextField(
                         value = form.wholesaleMin,
                         onValueChange = onWholesaleMinChange,
-                        label = { Text("Wholesale min price (₹)") },
+                        label = { Text("${stringResource(R.string.field_wholesale_min_price)} ($currencySymbol)") },
                         isError = form.wholesaleMinError != null,
                         supportingText = form.wholesaleMinError?.let { { Text(it) } },
                         modifier = Modifier.fillMaxWidth(),
@@ -551,7 +594,7 @@ private fun VariantFormSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("In stock", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.field_in_stock), style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = form.inStock, onCheckedChange = onInStockChange)
             }
 
@@ -559,8 +602,13 @@ private fun VariantFormSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-                Button(onClick = onSave) { Text(if (form.id == 0L) "Add" else "Update") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                Button(onClick = onSave) {
+                    Text(
+                        if (form.id == 0L) stringResource(R.string.action_add)
+                        else stringResource(R.string.action_update)
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))

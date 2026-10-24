@@ -284,7 +284,7 @@ fun ProductListScreen(
     }
 }
 
-private const val EXPORT_FILE_NAME = "chaitanya_stores_prices.csv"
+private const val EXPORT_FILE_NAME = "chaitanya_store_prices.csv"
 
 // ============================================================================
 // Top bar

@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -219,11 +225,23 @@ fun SettingsScreen(
             Divider()
             SectionHeader(R.string.settings_about)
 
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.titleMedium,
-                color = colors.onSurface
-            )
+            Card(
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = Color.Black),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.logo_dark),
+                    contentDescription = stringResource(R.string.logo_content_description),
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(96.dp)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
             Text(
                 text = stringResource(R.string.tagline),
                 style = MaterialTheme.typography.bodyMedium,
@@ -247,7 +265,7 @@ fun SettingsScreen(
     }
 }
 
-private const val EXPORT_FILE_NAME_SETTINGS = "chaitanya_stores_prices.csv"
+private const val EXPORT_FILE_NAME_SETTINGS = "chaitanya_store_prices.csv"
 
 private val PRICE_SIZE_OPTIONS = listOf(
     PriceFontSize.NORMAL to R.string.settings_price_size_normal,

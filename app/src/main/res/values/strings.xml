@@ -1,9 +1,9 @@
 <resources>
-    <string name="app_name">Chaitanya Stores</string>
+    <string name="app_name">Chaitanya Store</string>
     <string name="tagline">Every price, in one second.</string>
 
     <!-- Product list -->
-    <string name="logo_content_description">Chaitanya Stores logo</string>
+    <string name="logo_content_description">Chaitanya Store logo</string>
     <string name="items_in_price_list">%1$d items in price list</string>
     <string name="one_item_in_price_list">1 item in price list</string>
     <string name="price_list_empty">Price list is empty</string>
@@ -132,4 +132,67 @@
     <string name="import_export_errors">Save the problem rows as CSV</string>
     <string name="import_read_failed">Could not read that file</string>
     <string name="import_try_again">Try again</string>
+
+    <!-- Product edit screen -->
+    <string name="section_product_details">Product details</string>
+    <string name="section_variants_heading">Variants</string>
+    <string name="variants_empty_hint">No variants yet — add at least one size and price.</string>
+    <string name="add_variant">Add variant</string>
+    <string name="edit_variant">Edit variant</string>
+    <string name="desc_edit_variant">Edit this variant</string>
+    <string name="desc_delete_variant">Delete this variant</string>
+    <string name="action_save">Save</string>
+    <string name="save_anyway">Save anyway</string>
+    <string name="duplicate_product_title">Duplicate product</string>
+    <string name="duplicate_product_body">"%1$s" already exists. Save anyway to create a second entry, or cancel to go back and edit.</string>
+    <string name="no_variants_error">Add at least one variant before saving.</string>
+
+    <!-- Discard-changes dialog -->
+    <string name="discard_changes_title">Discard changes?</string>
+    <string name="discard_changes_body">Your unsaved changes will be lost.</string>
+    <string name="discard">Discard</string>
+    <string name="keep_editing">Keep editing</string>
+
+    <!-- Variant form fields -->
+    <string name="field_variant_label">Variant label</string>
+    <string name="variant_label_placeholder">e.g. 100 g, Single, Box of 12</string>
+    <string name="field_selling_max_price">Selling max price</string>
+    <string name="field_selling_min_price">Selling min price (optional)</string>
+    <string name="field_wholesale_max_price">Wholesale max price (optional)</string>
+    <string name="field_wholesale_min_price">Wholesale min price (optional)</string>
+    <string name="action_add">Add</string>
+    <string name="action_update">Update</string>
+    <string name="error_selling_min_too_high">Selling min cannot exceed the max price</string>
+    <string name="error_selling_min_zero">Selling min price must be greater than zero</string>
+    <string name="error_selling_min_too_large">Selling min price is too large</string>
+    <string name="error_wholesale_max_zero">Wholesale max price must be greater than zero</string>
+    <string name="error_wholesale_max_too_large">Wholesale max price is too large</string>
+    <string name="error_wholesale_min_too_high">Wholesale min cannot exceed the max price</string>
+    <string name="error_wholesale_min_zero">Wholesale min price must be greater than zero</string>
+    <string name="error_wholesale_min_too_large">Wholesale min price is too large</string>
+    <string name="error_duplicate_variant">A variant labelled "%1$s" already exists</string>
+
+    <!-- Manage brands &amp; categories -->
+    <string name="manage_brands_title">Manage Brands &amp; Categories</string>
+    <string name="tab_brands">Brands (%1$d)</string>
+    <string name="tab_categories">Categories (%1$d)</string>
+    <string name="no_brands_yet">No brands added yet.</string>
+    <string name="no_categories_yet">No categories added yet.</string>
+    <string name="add_brand">Add Brand</string>
+    <string name="add_category">Add Category</string>
+    <string name="edit_brand">Edit Brand</string>
+    <string name="edit_category">Edit Category</string>
+    <string name="delete_brand_title">Delete brand?</string>
+    <string name="delete_category_title">Delete category?</string>
+    <string name="delete_item_body">"%1$s" will be removed. Products using it won\'t be deleted.</string>
+    <string name="slug_label">slug: %1$s</string>
+    <string name="field_display_name">Display name</string>
+    <string name="field_slug">Canonical slug (CSV key)</string>
+    <string name="change_slug_title">Change slug?</string>
+    <string name="change_slug_body">Renaming the slug from "%1$s" to "%2$s" means CSV files that reference the old slug won\'t auto-match any more.</string>
+    <string name="change_slug_confirm">Change slug anyway</string>
+    <string name="error_invalid_slug">Use lowercase letters, numbers, and hyphens only</string>
+    <string name="select_label">Select %1$s</string>
+    <string name="search_placeholder">Search…</string>
+    <string name="no_matches_in_list">No matches</string>
 </resources>

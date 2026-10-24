@@ -1,6 +1,5 @@
 package com.bhaavbook.app.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +21,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +39,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,10 +47,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.bhaavbook.app.R
 import com.bhaavbook.app.data.model.Brand
 import com.bhaavbook.app.data.model.Category
 import com.bhaavbook.app.ui.viewmodel.ItemFormState
@@ -74,24 +76,34 @@ fun ManageBrandsScreen(
         }
     }
 
-    // Delete confirmation dialog
     if (state.itemToDelete != null) {
         val itemName = when (val item = state.itemToDelete) {
             is Brand -> item.name
             is Category -> item.name
             else -> ""
         }
-        val itemType = if (state.activeTab == ManageTab.BRANDS) "brand" else "category"
+        val titleRes = if (state.activeTab == ManageTab.BRANDS)
+            R.string.delete_brand_title else R.string.delete_category_title
 
         AlertDialog(
             onDismissRequest = viewModel::dismissDeleteDialog,
-            title = { Text("Delete $itemType?") },
-            text = { Text("Are you sure you want to delete \"$itemName\"? Existing products won't be deleted.") },
+            title = { Text(stringResource(titleRes)) },
+            text = { Text(stringResource(R.string.delete_item_body, itemName)) },
             confirmButton = {
-                Button(onClick = viewModel::confirmDelete) { Text("Delete") }
+                Button(
+                    onClick = viewModel::confirmDelete,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.error,
+                        contentColor = colors.onError
+                    )
+                ) {
+                    Text(stringResource(R.string.delete))
+                }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::dismissDeleteDialog) { Text("Cancel") }
+                TextButton(onClick = viewModel::dismissDeleteDialog) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         )
     }
@@ -99,12 +111,20 @@ fun ManageBrandsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Manage Brands & Categories") },
+                title = { Text(stringResource(R.string.manage_brands_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colors.secondary,
+                    titleContentColor = colors.onSecondary,
+                    navigationIconContentColor = colors.onSecondary
+                )
             )
         },
         floatingActionButton = {
@@ -113,7 +133,7 @@ fun ManageBrandsScreen(
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary
             ) {
-                Icon(Icons.Outlined.Add, contentDescription = "Add")
+                Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.add_product))
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -127,19 +147,19 @@ fun ManageBrandsScreen(
                 Tab(
                     selected = state.activeTab == ManageTab.BRANDS,
                     onClick = { viewModel.selectTab(ManageTab.BRANDS) },
-                    text = { Text("Brands (${state.brands.size})") }
+                    text = { Text(stringResource(R.string.tab_brands, state.brands.size)) }
                 )
                 Tab(
                     selected = state.activeTab == ManageTab.CATEGORIES,
                     onClick = { viewModel.selectTab(ManageTab.CATEGORIES) },
-                    text = { Text("Categories (${state.categories.size})") }
+                    text = { Text(stringResource(R.string.tab_categories, state.categories.size)) }
                 )
             }
 
             when (state.activeTab) {
                 ManageTab.BRANDS -> {
                     if (state.brands.isEmpty()) {
-                        EmptyListMessage("No brands added yet.")
+                        EmptyListMessage(stringResource(R.string.no_brands_yet))
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(state.brands, key = { it.id }) { brand ->
@@ -156,7 +176,7 @@ fun ManageBrandsScreen(
                 }
                 ManageTab.CATEGORIES -> {
                     if (state.categories.isEmpty()) {
-                        EmptyListMessage("No categories added yet.")
+                        EmptyListMessage(stringResource(R.string.no_categories_yet))
                     } else {
                         LazyColumn(modifier = Modifier.fillMaxSize()) {
                             items(state.categories, key = { it.id }) { category ->
@@ -174,15 +194,17 @@ fun ManageBrandsScreen(
             }
         }
 
-        // Add/Edit sheet
         if (state.formState != null) {
+            val isAdd = state.formState!!.id == 0L
+            val titleRes = when {
+                isAdd && state.activeTab == ManageTab.BRANDS -> R.string.add_brand
+                isAdd -> R.string.add_category
+                state.activeTab == ManageTab.BRANDS -> R.string.edit_brand
+                else -> R.string.edit_category
+            }
             ItemFormSheet(
                 form = state.formState!!,
-                title = if (state.formState!!.id == 0L) {
-                    if (state.activeTab == ManageTab.BRANDS) "Add Brand" else "Add Category"
-                } else {
-                    if (state.activeTab == ManageTab.BRANDS) "Edit Brand" else "Edit Category"
-                },
+                title = stringResource(titleRes),
                 onNameChange = viewModel::onNameChange,
                 onSlugChange = viewModel::onSlugChange,
                 onToggleEditSlug = viewModel::toggleEditSlug,
@@ -206,15 +228,28 @@ private fun ItemRow(
             Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
         },
         supportingContent = {
-            Text("slug: $slug", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Text(
+                stringResource(R.string.slug_label, slug),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant
+            )
         },
         trailingContent = {
             Row {
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Outlined.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = stringResource(R.string.edit),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 IconButton(onClick = onDelete) {
-                    Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete", tint = colors.error, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Outlined.DeleteOutline,
+                        contentDescription = stringResource(R.string.delete),
+                        tint = colors.error,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -249,22 +284,18 @@ private fun ItemFormSheet(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Slug warning dialog
     if (form.showSlugWarning) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Change slug?") },
+            title = { Text(stringResource(R.string.change_slug_title)) },
             text = {
-                Text(
-                    "Changing the slug from \"${form.originalSlug}\" to \"${form.slug}\" " +
-                        "means CSV files using the old slug will no longer match automatically."
-                )
+                Text(stringResource(R.string.change_slug_body, form.originalSlug, form.slug))
             },
             confirmButton = {
-                Button(onClick = onSave) { Text("Change slug anyway") }
+                Button(onClick = onSave) { Text(stringResource(R.string.change_slug_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -286,7 +317,7 @@ private fun ItemFormSheet(
             OutlinedTextField(
                 value = form.name,
                 onValueChange = onNameChange,
-                label = { Text("Display name *") },
+                label = { Text(stringResource(R.string.field_display_name)) },
                 isError = form.nameError != null,
                 supportingText = form.nameError?.let { { Text(it) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -296,14 +327,14 @@ private fun ItemFormSheet(
             OutlinedTextField(
                 value = form.slug,
                 onValueChange = onSlugChange,
-                label = { Text("Canonical Slug (CSV Key)") },
+                label = { Text(stringResource(R.string.field_slug)) },
                 readOnly = form.id != 0L && !form.isEditingSlug,
                 isError = form.slugError != null,
                 supportingText = form.slugError?.let { { Text(it) } },
                 trailingIcon = {
                     if (form.id != 0L && !form.isEditingSlug) {
                         TextButton(onClick = onToggleEditSlug) {
-                            Text("Edit", style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.edit), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 },
@@ -315,8 +346,13 @@ private fun ItemFormSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
             ) {
-                TextButton(onClick = onDismiss) { Text("Cancel") }
-                Button(onClick = onSave) { Text(if (form.id == 0L) "Add" else "Save") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                Button(onClick = onSave) {
+                    Text(
+                        if (form.id == 0L) stringResource(R.string.action_add)
+                        else stringResource(R.string.action_save)
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))

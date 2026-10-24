@@ -133,7 +133,7 @@ fun CsvImportScreen(
             when (val step = state.step) {
                 is ImportStep.PickFile -> PickFileStep(
                     onPickFile = { filePicker.launch(CSV_MIME_TYPES) },
-                    onDownloadSample = { sampleSaver.launch("chaitanya_stores_sample.csv") }
+                    onDownloadSample = { sampleSaver.launch("chaitanya_store_sample.csv") }
                 )
 
                 is ImportStep.Preview -> PreviewStep(
@@ -156,7 +156,7 @@ fun CsvImportScreen(
 
                 is ImportStep.Done -> DoneStep(
                     result = step.result,
-                    onExportErrors = { errorSaver.launch("chaitanya_stores_rows_to_fix.csv") },
+                    onExportErrors = { errorSaver.launch("chaitanya_store_rows_to_fix.csv") },
                     onDone = leave
                 )
 

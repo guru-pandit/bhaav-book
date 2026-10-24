@@ -62,7 +62,9 @@ data class ProductEditUiState(
     val availableCategories: List<String> = emptyList(),
     val availableBrands: List<String> = emptyList(),
 
-    val showWholesalePrice: Boolean = false
+    val showWholesalePrice: Boolean = false,
+    val isDirty: Boolean = false,
+    val currencySymbol: String = "₹"
 )
 
 @HiltViewModel
@@ -98,7 +100,8 @@ class ProductEditViewModel @Inject constructor(
         current.copy(
             availableCategories = dbCategories,
             availableBrands = dbBrands,
-            showWholesalePrice = settings.showWholesalePrice
+            showWholesalePrice = settings.showWholesalePrice,
+            currencySymbol = settings.currencySymbol
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), _state.value)
 
@@ -134,17 +137,17 @@ class ProductEditViewModel @Inject constructor(
 
     fun onNameChange(value: String) = update {
         duplicateAcknowledged = false
-        it.copy(name = value, nameError = null, duplicateWarning = null)
+        it.copy(name = value, nameError = null, duplicateWarning = null, isDirty = true)
     }
 
     fun onBrandChange(value: String) = update {
         duplicateAcknowledged = false
-        it.copy(brand = value, duplicateWarning = null)
+        it.copy(brand = value, duplicateWarning = null, isDirty = true)
     }
 
-    fun onCategoryChange(value: String) = update { it.copy(category = value) }
+    fun onCategoryChange(value: String) = update { it.copy(category = value, isDirty = true) }
 
-    fun onNotesChange(value: String) = update { it.copy(notes = value) }
+    fun onNotesChange(value: String) = update { it.copy(notes = value, isDirty = true) }
 
     fun clearSaveError() = update { it.copy(saveError = null) }
 
@@ -293,12 +296,12 @@ class ProductEditViewModel @Inject constructor(
             } else {
                 state.variants.map { if (it.id == form.id) newVariant else it }
             }
-            state.copy(variants = updated, variantForm = null)
+            state.copy(variants = updated, variantForm = null, isDirty = true)
         }
     }
 
     fun deleteVariant(variant: ProductVariant) = update { state ->
-        state.copy(variants = state.variants.filter { it.id != variant.id })
+        state.copy(variants = state.variants.filter { it.id != variant.id }, isDirty = true)
     }
 
     // -----------------------------------------------------------------------
@@ -360,7 +363,7 @@ class ProductEditViewModel @Inject constructor(
                     repository.upsertVariant(v.copy(productId = savedId))
                 }
             }.onSuccess {
-                update { it.copy(isSaving = false, savedSuccessfully = true) }
+                update { it.copy(isSaving = false, savedSuccessfully = true, isDirty = false) }
             }.onFailure { error ->
                 update { it.copy(isSaving = false, saveError = error.readableMessage()) }
             }
